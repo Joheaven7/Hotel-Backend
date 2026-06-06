@@ -1,10 +1,10 @@
-require('dotenv').config({ path: '.env.production' });
+require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('../src/models/User');
 
 async function seed() {
   if (!process.env.MONGO_URI) {
-    console.error('Missing MONGO_URI in backend/.env.production');
+    console.error('Missing MONGO_URI in backend/.env');
     process.exit(1);
   }
 

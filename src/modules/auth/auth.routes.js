@@ -72,11 +72,15 @@ router.get('/google/callback',
         name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
       }));
 
+      // Ensure clientUrl does not end with a slash, and fallback to the Vercel URL
+      const clientUrl = (process.env.CLIENT_URL || 'https://hotel-frontend-joheaven7s-projects.vercel.app').replace(/\/$/, '');
+
       // Redirect with real JWT token in hash fragment to protect it from logs/intercepts
-      res.redirect(`${process.env.CLIENT_URL}/login#token=${accessToken}&user=${userString}`);
+      res.redirect(`${clientUrl}/login#token=${accessToken}&user=${userString}`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
-      res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
+      const clientUrl = (process.env.CLIENT_URL || 'https://hotel-frontend-joheaven7s-projects.vercel.app').replace(/\/$/, '');
+      res.redirect(`${clientUrl}/login?error=oauth_failed`);
     }
   }
 );
