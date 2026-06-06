@@ -245,6 +245,40 @@ const emailTemplates = {
       </div>
     `,
   }),
+
+  passwordReset: (data) => ({
+    subject: `🔒 Reset Your Password — LUXSTAY`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+        <div style="background: linear-gradient(135deg, #0F5B4F, #1a7a6b); padding: 32px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="color: #F2B705; margin: 0; font-size: 28px;">LUXSTAY</h1>
+          <p style="color: #ffffff; margin: 8px 0 0 0; opacity: 0.9;">Password Reset Request</p>
+        </div>
+
+        <div style="padding: 32px; background: #f9fafb; border: 1px solid #e5e7eb;">
+          <h2 style="color: #111827; margin-top: 0;">Hello, ${data.name || 'User'}</h2>
+          <p style="color: #6b7280; line-height: 1.6;">You are receiving this email because you (or someone else) requested a password reset for your account.</p>
+          
+          <p style="color: #6b7280; line-height: 1.6;">Please click the button below or copy and paste the URL into your browser to complete the process. This link is valid for 1 hour.</p>
+
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${data.resetUrl}"
+               style="display: inline-block; padding: 12px 24px; background-color: #0F5B4F; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Reset Password
+            </a>
+          </div>
+
+          <p style="color: #6b7280; font-size: 13px; word-break: break-all;">
+            If you did not request this, please ignore this email and your password will remain unchanged.
+          </p>
+
+          <p style="color: #6b7280; font-size: 13px; text-align: center; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+            LuxStay Hotels Management
+          </p>
+        </div>
+      </div>
+    `,
+  }),
 };
 
 // ── sendEmail ─────────────────────────────────────────────────────────────────

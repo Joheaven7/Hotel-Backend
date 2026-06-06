@@ -1,10 +1,10 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('./models/User');
 const Room = require('./models/Room');
 const Hall = require('./models/Hall');
 const RoomType = require('./models/RoomType');
 const HallType = require('./models/HallType');
-require('dotenv').config();
 
 const seedDatabase = async () => {
   try {
@@ -31,7 +31,7 @@ const seedDatabase = async () => {
       {
         firstName: 'General',
         lastName: 'Manager',
-        email: 'admin@hotel.com',
+        email: 'gm@hotel.com',
         password: 'password123',
         role: 'ADMIN',
         phone: '+1234567891',

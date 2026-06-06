@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { encryptEmail, decryptEmail } = require('../utils/encryption');
 
 const userSchema = new mongoose.Schema(
   {
@@ -12,8 +13,8 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Email is required'],
       unique: true,
-      lowercase: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Invalid email'],
+      get: decryptEmail,
+      set: encryptEmail,
     },
 
     password: {
@@ -66,10 +67,16 @@ const userSchema = new mongoose.Schema(
 
     // ── OAuth / Tokens ────────────────────────────────────────────────────────
     googleId: String,
-    facebookId: String,
+
     refreshToken: { type: String, select: false },
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpires: { type: Date, select: false },
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    toJSON: { getters: true, virtuals: true },
+    toObject: { getters: true, virtuals: true }
+  }
 );
 
 // ── Pre-find: exclude soft-deleted users by default ────────────────────────
@@ -126,12 +133,17 @@ userSchema.pre('save', async function (next) {
   // Hash password
   if (!this.isModified('password')) return next();
   try {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
     next(error);
   }
+});
+
+userSchema.virtual('decryptedEmail').get(function () {
+  const rawEmail = this.get('email', null, { getters: false });
+  return decryptEmail(rawEmail);
 });
 
 userSchema.methods.comparePassword = async function (enteredPassword) {

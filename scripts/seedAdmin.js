@@ -1,6 +1,6 @@
+require('dotenv').config({ path: '.env.production' });
 const mongoose = require('mongoose');
 const User = require('../src/models/User');
-require('dotenv').config({ path: '.env.production' });
 
 async function seed() {
   if (!process.env.MONGO_URI) {

@@ -24,6 +24,6 @@ router.get('/superadmin', roleCheck(ROLES.SUPER_ADMIN), dashboardController.supe
 router.get('/admin', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN), dashboardController.adminDashboard);
 router.get('/accountant', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT), dashboardController.accountantDashboard);
 router.get('/staff', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF), dashboardController.staffDashboard);
-router.get('/customer', dashboardController.customerDashboard);
+router.get('/customer', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.CUSTOMER), dashboardController.customerDashboard);
 
 module.exports = router;

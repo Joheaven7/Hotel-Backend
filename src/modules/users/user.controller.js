@@ -1,6 +1,7 @@
 const User = require('../../models/User');
 const AuditLog = require('../../models/AuditLog');
 const { createNotification } = require('../../services/notificationService');
+const { encryptEmail } = require('../../utils/encryption');
 const {
   ROLES,
   ROLE_CREATION_PERMISSIONS,
@@ -15,7 +16,7 @@ const createUser = async (req, res) => {
 
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: encryptEmail(email) });
     if (existingUser) {
       return res.status(409).json({ message: 'Email already in use' });
     }
@@ -69,7 +70,7 @@ const createUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Create user error:', error);
-    res.status(500).json({ message: 'Failed to create user', error: error.message });
+    res.status(500).json({ message: 'Failed to create user' });
   }
 };
 
@@ -110,10 +111,11 @@ const getAllUsers = async (req, res) => {
 
     if (search) {
       const sanitizedSearch = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const encryptedSearch = encryptEmail(search);
       query.$or = [
         { firstName: { $regex: sanitizedSearch, $options: 'i' } },
         { lastName: { $regex: sanitizedSearch, $options: 'i' } },
-        { email: { $regex: sanitizedSearch, $options: 'i' } },
+        { email: encryptedSearch },
         { name: { $regex: sanitizedSearch, $options: 'i' } },
       ];
     }
@@ -137,7 +139,7 @@ const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     console.error('getAllUsers error:', error);
-    res.status(500).json({ message: 'Failed to fetch users', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch users' });
   }
 };
 
@@ -148,7 +150,7 @@ const getUserById = async (req, res) => {
 
 
 
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(userId).select('-password -refreshToken');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -163,7 +165,7 @@ const getUserById = async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('Get user by ID error:', error);
-    res.status(500).json({ message: 'Failed to fetch user', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch user' });
   }
 };
 
@@ -236,18 +238,26 @@ const updateUser = async (req, res) => {
     }
     updateData.updatedBy = req.user._id;
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-      runValidators: true,
-    }).select('-password -refreshToken');
-
-    if (!updatedUser) {
+    const userToUpdate = await User.findById(userId);
+    if (!userToUpdate) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ message: 'User updated successfully', user: updatedUser });
+    // Apply updates
+    Object.keys(updateData).forEach((key) => {
+      userToUpdate[key] = updateData[key];
+    });
+
+    await userToUpdate.save();
+
+    const sanitizedUser = userToUpdate.toObject();
+    delete sanitizedUser.password;
+    delete sanitizedUser.refreshToken;
+
+    res.json({ message: 'User updated successfully', user: sanitizedUser });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to update user', error: error.message });
+    console.error('Update user error:', error);
+    res.status(500).json({ message: 'Failed to update user' });
   }
 };
 
@@ -284,7 +294,7 @@ const deleteUser = async (req, res) => {
     res.json({ message: 'User deactivated successfully', userId });
   } catch (error) {
     console.error('deleteUser error:', error);
-    res.status(500).json({ message: 'Failed to delete user', error: error.message });
+    res.status(500).json({ message: 'Failed to delete user' });
   }
 };
 
@@ -310,7 +320,8 @@ const restoreUser = async (req, res) => {
       user: { ...user.toObject(), password: undefined, refreshToken: undefined },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to restore user', error: error.message });
+    console.error('restoreUser error:', error);
+    res.status(500).json({ message: 'Failed to restore user' });
   }
 };
 
@@ -343,7 +354,7 @@ const assignRole = async (req, res) => {
       userId,
       { role: newRole },
       { new: true }
-    ).select('-password');
+    ).select('-password -refreshToken');
 
     if (oldRole !== newRole) {
       await AuditLog.create({
@@ -364,7 +375,8 @@ const assignRole = async (req, res) => {
       user,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to assign role', error: error.message });
+    console.error('assignRole error:', error);
+    res.status(500).json({ message: 'Failed to assign role' });
   }
 };
 

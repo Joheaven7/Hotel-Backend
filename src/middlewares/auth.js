@@ -27,7 +27,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid token payload' });
     }
 
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(userId).select('-password -refreshToken');
 
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -46,7 +46,7 @@ const authMiddleware = async (req, res, next) => {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ message: 'Invalid token' });
     }
-    res.status(401).json({ message: 'Authentication failed', error: error.message });
+    res.status(401).json({ message: 'Authentication failed' });
   }
 };
 

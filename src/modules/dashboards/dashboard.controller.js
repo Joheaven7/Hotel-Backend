@@ -326,7 +326,14 @@ const customerDashboard = async (req, res) => {
       Reservation.find({ customerId }).select('_id').then((reservations) => {
         const reservationIds = reservations.map((r) => r._id);
         return Payment.find({ reservation: { $in: reservationIds } })
-          .populate('reservation', 'reservationNumber checkInDate checkOutDate')
+          .populate({
+            path: 'reservation',
+            select: 'reservationNumber checkInDate checkOutDate roomId hallId',
+            populate: [
+              { path: 'roomId', select: 'roomNumber type' },
+              { path: 'hallId', select: 'hallName' }
+            ]
+          })
           .sort({ createdAt: -1 });
       }),
 
@@ -336,6 +343,7 @@ const customerDashboard = async (req, res) => {
         status: { $ne: RESERVATION_STATUS.CANCELLED },
       })
         .populate('roomId', 'roomNumber type')
+        .populate('hallId', 'hallName pricePerHour')
         .sort({ checkInDate: 1 }),
     ]);
 

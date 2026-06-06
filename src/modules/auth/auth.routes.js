@@ -23,6 +23,8 @@ router.post('/register', authLimiter, validateRegistration, handleValidationErro
 router.post('/login', authLimiter, authController.loginUser);
 router.post('/refresh', authController.refreshToken);
 router.post('/logout', authController.logoutUser);
+router.post('/forgot-password', authLimiter, authController.forgotPassword);
+router.post('/reset-password', authLimiter, authController.resetPassword);
 
 // ==========================================
 // 🚀 SOCIAL AUTHENTICATION ENDPOINTS
@@ -79,51 +81,7 @@ router.get('/google/callback',
   }
 );
 
-// --- Facebook Auth ---
-router.get('/facebook', passport.authenticate('facebook', { scope: ['email'], session: false }));
 
-router.get('/facebook/callback',
-  passport.authenticate('facebook', { session: false, failureRedirect: `${process.env.CLIENT_URL}/login?error=oauth_failed` }),
-  async (req, res) => {
-    try {
-      const user = req.user;
-
-      const accessToken = generateAccessToken(user._id, user.role);
-      const refreshToken = generateRefreshToken(user._id);
-
-      await User.findByIdAndUpdate(user._id, {
-        refreshToken,
-        lastLoginAt: new Date(),
-      });
-
-      res.cookie('refreshToken', refreshToken, getCookieOptions());
-
-      logAudit({
-        userId: user._id,
-        user,
-        actionType: 'LOGIN',
-        resource: '/auth/facebook/callback',
-        details: { email: user.email, role: user.role, method: 'facebook' },
-        req,
-      });
-
-      const userString = encodeURIComponent(JSON.stringify({
-        id: user._id,
-        _id: user._id,
-        email: user.email,
-        role: user.role,
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-      }));
-
-      res.redirect(`${process.env.CLIENT_URL}/login#token=${accessToken}&user=${userString}`);
-    } catch (error) {
-      console.error('Facebook OAuth callback error:', error);
-      res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
-    }
-  }
-);
 
 // Protected routes
 router.get('/me', authMiddleware, authController.getCurrentUser);

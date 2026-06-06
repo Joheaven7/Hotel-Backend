@@ -8,6 +8,7 @@ const app = express();
 
 
 const connectDB = require('./config/database');
+const cookieParser = require('cookie-parser');
 const { connectRedis } = require('./config/redis');
 const { initializeSocket } = require('./sockets/socketHandler');
 const passport = require('./config/passport'); // Path to your file
@@ -66,6 +67,7 @@ app.use(helmet());
 
 app.use(cors(corsOptions));
 
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
@@ -122,8 +124,10 @@ const startServer = async () => {
     await connectDB();
 
     try {
-      await connectRedis();
-      console.log('Redis connected');
+      const redisClient = await connectRedis();
+      if (redisClient) {
+        console.log('Redis connected');
+      }
     } catch (err) {
       console.warn('⚠️ Redis failed, continuing without it');
     }
