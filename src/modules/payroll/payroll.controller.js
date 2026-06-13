@@ -145,11 +145,11 @@ const getPayrollWorkers = async (req, res) => {
   }
 };
 
-// ─── Get payroll by month ─────────────────────────────────────────────────────
+// ── Get payroll by month ─────────────────────────────────────────────────────
 const getPayrollByMonth = async (req, res) => {
   try {
     const { month } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, showDeleted } = req.query;
 
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
       return res.status(400).json({ message: 'Month must be in YYYY-MM format' });
@@ -157,18 +157,27 @@ const getPayrollByMonth = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Build filter — by default exclude soft-deleted
+    const filter = { month };
+    if (showDeleted === 'true' && ['SUPER_ADMIN', 'HR'].includes(req.user?.role)) {
+      filter.deleted = true;
+    } else {
+      filter.deleted = { $ne: true };
+    }
+
     const [payrollEntries, total, totals] = await Promise.all([
-      Payroll.find({ month })
+      Payroll.find(filter)
         .populate('staffId', 'firstName lastName email department baseSalary')
         .populate('paidBy', 'firstName lastName')
+        .populate('deletedBy', 'firstName lastName')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
 
-      Payroll.countDocuments({ month }),
+      Payroll.countDocuments(filter),
 
       Payroll.aggregate([
-        { $match: { month } },
+        { $match: filter },
         {
           $group: {
             _id: null,
@@ -303,7 +312,7 @@ const updatePayroll = async (req, res) => {
   }
 };
 
-// ─── Delete payroll (unpaid entries only) ─────────────────────────────────────
+// ── Soft delete payroll (row) ─────────────────────────────────────────────────
 const deletePayroll = async (req, res) => {
   try {
     const { payrollId } = req.params;
@@ -311,6 +320,10 @@ const deletePayroll = async (req, res) => {
     const payroll = await Payroll.findById(payrollId);
     if (!payroll) {
       return res.status(404).json({ message: 'Payroll entry not found' });
+    }
+
+    if (payroll.deleted) {
+      return res.status(400).json({ message: 'Payroll entry is already deleted' });
     }
 
     if (payroll.isPaid) {

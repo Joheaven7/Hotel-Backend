@@ -77,6 +77,15 @@ const reservationSchema = new mongoose.Schema(
     checkedInAt: Date,
     checkedOutAt: Date,
     isBlockedByMaintenance: { type: Boolean, default: false },
+
+    // ── Soft delete ─────────────────────────────────────────────────────
+    deleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true }
 );

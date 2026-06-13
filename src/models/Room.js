@@ -84,4 +84,7 @@ roomSchema.pre('save', async function (next) {
   next();
 });
 
+roomSchema.index({ status: 1, isActive: 1 });
+roomSchema.index({ roomTypeId: 1 });
+
 module.exports = mongoose.model('Room', roomSchema);

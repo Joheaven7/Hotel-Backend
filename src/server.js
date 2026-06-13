@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 require('dotenv').config();
 const app = express();
 
@@ -63,8 +64,7 @@ const corsOptions = {
 
 
 app.use(helmet());
-
-
+app.use(compression());
 app.use(cors(corsOptions));
 
 app.use(cookieParser());
@@ -100,6 +100,16 @@ app.use('/api/dashboards', dashboardRoutes);
 app.use('/api/auditlogs', require('./modules/auditlogs/auditlog.routes'));
 app.use('/api/complaints', require('./modules/complaints/complaint.routes'));
 app.use('/api/notifications', require('./modules/notifications/notification.routes'));
+// Public cached routes
+const cacheControl = (req, res, next) => {
+  res.set('Cache-Control', 'public, max-age=300'); // 5 minute cache
+  next();
+};
+
+app.use('/api/room-types/public', cacheControl, require('./modules/roomtypes/roomtype.routes'));
+app.use('/api/hall-types/public', cacheControl, require('./modules/halltypes/halltype.routes'));
+
+// General routes
 app.use('/api/room-types', require('./modules/roomtypes/roomtype.routes'));
 app.use('/api/hall-types', require('./modules/halltypes/halltype.routes'));
 app.use('/api/upload', require('./modules/upload/upload.routes'));
@@ -124,12 +134,15 @@ const startServer = async () => {
     await connectDB();
 
     try {
-      const redisClient = await connectRedis();
+      const redisClient = await Promise.race([
+        connectRedis(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 3000))
+      ]);
       if (redisClient) {
         console.log('Redis connected');
       }
     } catch (err) {
-      console.warn('⚠️ Redis failed, continuing without it');
+      console.warn('⚠️ Redis failed or timed out, continuing without it');
     }
 
     initializeSocket(io);

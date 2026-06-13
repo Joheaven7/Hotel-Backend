@@ -302,6 +302,7 @@ exports.createReservation = async (req, res) => {
 exports.getAllReservations = async (req, res) => {
   try {
     const { role, _id: userId } = req.user;
+    const { showDeleted } = req.query;
 
     let filter = {};
 
@@ -309,13 +310,19 @@ exports.getAllReservations = async (req, res) => {
     if (role === 'CUSTOMER') {
       filter.customerId = userId;
     }
-    // STAFF sees all but cannot modify (handled at route level)
-    // ADMIN, SUPER_ADMIN, ACCOUNTANT see everything
+
+    // By default exclude soft-deleted; SUPER_ADMIN can toggle to see deleted
+    if (showDeleted === 'true' && role === 'SUPER_ADMIN') {
+      filter.deleted = true;
+    } else {
+      filter.deleted = { $ne: true };
+    }
 
     const reservations = await Reservation.find(filter)
       .populate('customerId', 'firstName lastName email phone')
       .populate('roomId', 'roomNumber type pricePerNight')
       .populate('hallId', 'hallName capacity')
+      .populate('deletedBy', 'firstName lastName')
       .sort({ createdAt: -1 });
 
     const transformedReservations = reservations.map(r => ({
@@ -703,6 +710,75 @@ exports.getReviews = async (req, res) => {
       message: 'Error fetching reviews',
       error: error.message,
     });
+  }
+};
+
+// ── Soft delete reservation (SUPER_ADMIN only) ─────────────────────────────
+exports.deleteReservation = async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+
+    const reservation = await Reservation.findById(reservationId);
+    if (!reservation) {
+      return res.status(404).json({ message: 'Reservation not found' });
+    }
+
+    if (reservation.deleted) {
+      return res.status(400).json({ message: 'Reservation is already deleted' });
+    }
+
+    reservation.deleted = true;
+    reservation.deletedAt = new Date();
+    reservation.deletedBy = req.user._id;
+    await reservation.save();
+
+    if (req.io) {
+      req.io.emit('reservation:deleted', { reservationId: reservation._id });
+    }
+
+    createNotification(req.io, {
+      title: 'Reservation Deleted',
+      message: `Reservation ${reservation.reservationNumber} has been soft-deleted by admin.`,
+      type: 'RESERVATION_CANCELLED',
+      targetRoles: ['SUPER_ADMIN', 'ADMIN'],
+      resourceId: reservation._id,
+      resourceType: 'Reservation',
+    });
+
+    res.json({ message: 'Reservation deleted successfully', reservationId: reservation._id });
+  } catch (error) {
+    console.error('Error deleting reservation:', error);
+    res.status(500).json({ message: 'Failed to delete reservation', error: error.message });
+  }
+};
+
+// ── Undo soft delete reservation (SUPER_ADMIN only) ────────────────────────
+exports.undoDeleteReservation = async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+
+    const reservation = await Reservation.findById(reservationId);
+    if (!reservation) {
+      return res.status(404).json({ message: 'Reservation not found' });
+    }
+
+    if (!reservation.deleted) {
+      return res.status(400).json({ message: 'Reservation is not deleted' });
+    }
+
+    reservation.deleted = false;
+    reservation.deletedAt = null;
+    reservation.deletedBy = null;
+    await reservation.save();
+
+    if (req.io) {
+      req.io.emit('reservation:restored', { reservationId: reservation._id });
+    }
+
+    res.json({ message: 'Reservation restored successfully', reservationId: reservation._id });
+  } catch (error) {
+    console.error('Error restoring reservation:', error);
+    res.status(500).json({ message: 'Failed to restore reservation', error: error.message });
   }
 };
 

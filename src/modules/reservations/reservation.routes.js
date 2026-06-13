@@ -15,6 +15,9 @@ const bookingLimiter = createRateLimiter({
   message: 'Too many reservation requests. Please try again in 5 minutes.',
 });
 
+// Get reviews (public route)
+router.get('/reviews', reservationController.getReviews);
+
 router.use(authMiddleware);
 
 // Create reservation
@@ -32,9 +35,6 @@ router.get('/', reservationController.getAllReservations);
 
 // Availability calendar
 router.get('/calendar/availability', reservationController.getAvailabilityCalendar);
-
-// Get reviews (must be registered before /:reservationId)
-router.get('/reviews', reservationController.getReviews);
 
 // Get single reservation
 router.get('/:reservationId', reservationController.getReservationById);
@@ -80,6 +80,22 @@ router.post(
   '/:reservationId/cancel',
   auditLogger('RESERVATION_CANCEL'),
   reservationController.cancelReservation
+);
+
+// Soft delete — SUPER_ADMIN only
+router.delete(
+  '/:reservationId',
+  roleCheck(ROLES.SUPER_ADMIN),
+  auditLogger('RESERVATION_DELETE'),
+  reservationController.deleteReservation
+);
+
+// Undo soft delete — SUPER_ADMIN only
+router.post(
+  '/:reservationId/undo-delete',
+  roleCheck(ROLES.SUPER_ADMIN),
+  auditLogger('RESERVATION_RESTORE'),
+  reservationController.undoDeleteReservation
 );
 
 module.exports = router;
