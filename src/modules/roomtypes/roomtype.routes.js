@@ -78,6 +78,9 @@ router.post('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async
 
         res.status(201).json({ message: 'Room type created', roomType });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ message: 'A room type with a similar name already exists' });
+        }
         res.status(500).json({ message: 'Failed to create room type', error: err.message });
     }
 });
@@ -119,6 +122,9 @@ router.put('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), asy
 
         res.json({ message: 'Room type updated and synced to all physical rooms', roomType });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ message: 'A room type with a similar name already exists' });
+        }
         res.status(500).json({ message: 'Failed to update room type', error: err.message });
     }
 });

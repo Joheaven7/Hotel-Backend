@@ -12,6 +12,14 @@ const reservationSchema = new mongoose.Schema(
       default: null, // null for walk-in guests without accounts
     },
 
+    // Customer details for walk-in guests
+    customer: {
+      fullName: String,
+      email: String,
+      phone: String,
+      idNumber: String
+    },
+
     // Walk-in guest fields (used when customerId is null)
     guestName: { type: String, default: '' },
     guestEmail: { type: String, default: '' },
@@ -62,6 +70,10 @@ const reservationSchema = new mongoose.Schema(
     },
 
     // ── Walk-in tracking ─────────────────────────────────────────────────
+    createdBy: {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      role: String
+    },
     // The staff member who created this reservation (front desk / walk-in)
     createdByStaff: {
       type: mongoose.Schema.Types.ObjectId,

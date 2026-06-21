@@ -69,6 +69,9 @@ router.post('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async
         });
         res.status(201).json({ message: 'Hall type created', hallType });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ message: 'A hall type with a similar name already exists' });
+        }
         res.status(500).json({ message: 'Failed to create hall type', error: err.message });
     }
 });
@@ -108,6 +111,9 @@ router.put('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), asy
 
         res.json({ message: 'Hall type updated and synced', hallType });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ message: 'A hall type with a similar name already exists' });
+        }
         res.status(500).json({ message: 'Failed to update hall type', error: err.message });
     }
 });

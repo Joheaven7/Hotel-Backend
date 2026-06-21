@@ -24,6 +24,8 @@ const paymentRoutes = require('./modules/payments/payment.routes');
 const payrollRoutes = require('./modules/payroll/payroll.routes');
 const maintenanceRoutes = require('./modules/maintenance/maintenance.routes');
 const dashboardRoutes = require('./modules/dashboards/dashboard.routes');
+const typesRoutes = require('./modules/types/types.routes');
+const availabilityRoutes = require('./modules/availability/availability.routes');
 
 const server = http.createServer(app);
 
@@ -100,6 +102,8 @@ app.use('/api/dashboards', dashboardRoutes);
 app.use('/api/auditlogs', require('./modules/auditlogs/auditlog.routes'));
 app.use('/api/complaints', require('./modules/complaints/complaint.routes'));
 app.use('/api/notifications', require('./modules/notifications/notification.routes'));
+app.use('/api/types', typesRoutes);
+app.use('/api/availability', availabilityRoutes);
 // Public cached routes
 const cacheControl = (req, res, next) => {
   res.set('Cache-Control', 'public, max-age=300'); // 5 minute cache

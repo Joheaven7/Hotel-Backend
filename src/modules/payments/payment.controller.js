@@ -73,7 +73,7 @@ exports.initiateChapaPayment = async (req, res) => {
       email: payment.customerEmail,
       first_name: payment.customerName.split(' ')[0],
       last_name: payment.customerName.split(' ').slice(1).join(' ') || '',
-      phone_number: payment.customerPhone,
+      phone_number: payment.customerPhone ? payment.customerPhone.replace(/[^0-9]/g, '') : undefined,
       tx_ref: txRef,
       callback_url: `${process.env.SERVER_URL || 'http://localhost:8000'}/api/payments/chapa/webhook`,
       return_url: `${process.env.CLIENT_URL}/payment-callback?tx_ref=${txRef}`,

@@ -1,9 +1,9 @@
 const express = require('express');
-const router  = express.Router();
+const router = express.Router();
 const AuditLog = require('../../models/AuditLog');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck }  = require('../../middlewares/roleCheck');
-const { ROLES }      = require('../../config/constants');
+const { roleCheck } = require('../../middlewares/roleCheck');
+const { ROLES } = require('../../config/constants');
 
 // All audit log routes — SUPER_ADMIN only
 router.use(authMiddleware);
@@ -12,8 +12,8 @@ router.use(roleCheck(ROLES.SUPER_ADMIN));
 router.get('/', async (req, res) => {
   try {
     const {
-      page       = 1,
-      limit      = 20,
+      page = 1,
+      limit = 20,
       userId,
       actionType,
       startDate,
@@ -21,17 +21,18 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const filter = {};
-    if (userId)     filter.userId     = userId;
+    if (userId) filter.userId = userId;
     if (actionType) filter.actionType = actionType;
     if (startDate || endDate) {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = new Date(startDate);
-      if (endDate)   filter.createdAt.$lte = new Date(new Date(endDate).setHours(23, 59, 59));
+      if (endDate) filter.createdAt.$lte = new Date(new Date(endDate).setHours(23, 59, 59));
     }
 
-    const skip  = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     const total = await AuditLog.countDocuments(filter);
-    const logs  = await AuditLog.find(filter)
+    const logs = await AuditLog.find(filter)
+      .populate('userId', 'firstName lastName email role')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -52,6 +53,7 @@ router.get('/summary', async (req, res) => {
       { $sort: { count: -1 } },
     ]);
     const recentLogins = await AuditLog.find({ actionType: 'LOGIN' })
+      .populate('userId', 'firstName lastName email role')
       .sort({ createdAt: -1 })
       .limit(5);
     res.json({ summary, recentLogins, since });

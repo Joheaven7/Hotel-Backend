@@ -105,7 +105,7 @@ router.get('/', async (req, res) => {
 
 // ── GET /api/complaints/stats — summary for dashboard ────────────────────────
 router.get('/stats',
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.STAFF),
     async (req, res) => {
         try {
             const [byStatus, byCategory, byPriority, total] = await Promise.all([

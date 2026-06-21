@@ -3,6 +3,7 @@ const Hall = require('../models/Hall');
 const RoomType = require('../models/RoomType');
 const HallType = require('../models/HallType');
 const Reservation = require('../models/Reservation');
+const Maintenance = require('../models/Maintenance');
 const { acquireLock, releaseLock } = require('../utils/lockingService');
 
 /**
@@ -39,12 +40,51 @@ const findAndLockRoom = async ({ roomTypeId, checkIn, checkOut, numberOfGuests }
         checkOutDate: { $gt: checkIn },
     }).distinct('roomId')).map(id => id.toString());
 
-    const available = candidates.filter(r => !conflictingRoomIds.includes(r._id.toString()));
+    // Filter out rooms with active maintenance overlapping the requested dates
+    const conflictingMaintenanceRoomIds = (await Maintenance.find({
+        roomId: { $in: candidates.map(r => r._id) },
+        status: { $in: ['OPEN', 'IN_PROGRESS'] },
+        $or: [
+            {
+                startDate: { $lt: checkOut },
+                endDate: { $gt: checkIn }
+            },
+            {
+                startDate: { $lt: checkOut },
+                endDate: { $exists: false }
+            },
+            {
+                startDate: { $lt: checkOut },
+                endDate: null
+            },
+            {
+                startDate: null,
+                createdAt: { $lt: checkOut }
+            },
+            {
+                startDate: { $exists: false },
+                createdAt: { $lt: checkOut }
+            },
+            {
+                blocksDates: {
+                    $elemMatch: {
+                        $gte: checkIn,
+                        $lt: checkOut
+                    }
+                }
+            }
+        ]
+    }).distinct('roomId')).map(id => id.toString());
+
+    const available = candidates.filter(r => 
+        !conflictingRoomIds.includes(r._id.toString()) &&
+        !conflictingMaintenanceRoomIds.includes(r._id.toString())
+    );
 
     if (available.length === 0) {
         return {
             error: 'FULLY_BOOKED',
-            message: 'All rooms of this type are booked for the selected dates.',
+            message: 'All rooms of this type are booked or under maintenance for the selected dates.',
             recommendations: await buildRoomRecommendations(roomTypeId, checkIn, checkOut, numberOfGuests),
         };
     }

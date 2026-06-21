@@ -9,6 +9,8 @@ const { emailQueue } = require('../../services/jobQueue');
 const SystemConfig = require('../../models/SystemConfig');
 const { createNotification } = require('../../services/notificationService');
 const { confirmReservation: confirmReservationService, cancelReservation: cancelReservationService } = require('../../services/reservationService');
+const { findAndLockRoom, findAndLockHall } = require('../../services/rohEngine');
+const { releaseLock } = require('../../utils/lockingService');
 const mongoose = require('mongoose');
 
 
@@ -28,7 +30,12 @@ exports.createReservation = async (req, res) => {
       checkOutDate,
       numberOfGuests,
       specialRequests,
-      // Walk-in form fields (front desk only)
+      // Walk-in form fields
+      fullName,
+      email,
+      phone,
+      idNumber,
+      // fallback fields for backward compatibility
       guestName,
       guestEmail,
       guestPhone,
@@ -61,9 +68,11 @@ exports.createReservation = async (req, res) => {
     // Walk-in front desk: require guest contact details
     const isStaff = ['STAFF', 'ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(req.user.role);
     if (isWalkIn && isStaff) {
-      if (!guestName?.trim()) return res.status(400).json({ message: 'Guest legal name is required for walk-in' });
-      if (!guestPhone?.trim()) return res.status(400).json({ message: 'Guest phone number is required for walk-in' });
-      if (!guestEmail?.trim()) return res.status(400).json({ message: 'Guest email is required for walk-in' });
+      if (!fullName || !email || !phone || !idNumber) {
+        return res.status(400).json({
+          message: "Customer details are required"
+        });
+      }
     }
 
     // ── ROH Engine: auto-assign physical unit ───────────────────────────────
@@ -132,13 +141,14 @@ exports.createReservation = async (req, res) => {
 
       // Determine customer info
       const customerId = (!isWalkIn) ? req.user._id : null;
-      const resolvedGuestName = isWalkIn ? guestName : `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim();
-      const resolvedGuestEmail = isWalkIn ? guestEmail : req.user.email;
-      const resolvedGuestPhone = isWalkIn ? guestPhone : req.user.phone;
+      const resolvedGuestName = isWalkIn ? (fullName || guestName) : `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim();
+      const resolvedGuestEmail = isWalkIn ? (email || guestEmail) : req.user.email;
+      const resolvedGuestPhone = isWalkIn ? (phone || guestPhone) : req.user.phone;
 
       const newReservation = new Reservation({
         reservationNumber,
         customerId,
+        customer: isWalkIn ? { fullName, email, phone, idNumber } : undefined,
         guestName: resolvedGuestName,
         guestEmail: resolvedGuestEmail,
         guestPhone: resolvedGuestPhone,
@@ -152,6 +162,10 @@ exports.createReservation = async (req, res) => {
         totalPrice,
         status: RESERVATION_STATUS.PENDING,
         specialRequests,
+        createdBy: {
+          userId: req.user._id,
+          role: req.user.role
+        },
         createdByStaff: isStaff ? req.user._id : null,
         isWalkIn: !!isWalkIn,
       });
@@ -327,7 +341,8 @@ exports.getAllReservations = async (req, res) => {
 
     const transformedReservations = reservations.map(r => ({
       ...r.toObject(),
-      customer: r.customerId,
+      // The populated customerId represents the registered user account
+      // For walk-ins, r.toObject() automatically contains the nested customer object
       room: r.roomId,
       hall: r.hallId,
     }));
@@ -368,7 +383,7 @@ exports.getReservationById = async (req, res) => {
 
     const transformed = {
       ...reservation.toObject(),
-      customer: reservation.customerId,
+      // Ensure we don't overwrite the walk-in customer nested object here either
       room: reservation.roomId,
       hall: reservation.hallId,
     };
