@@ -62,6 +62,12 @@ const initializeSocket = (io) => {
     // Dashboard rooms (for real-time dashboard updates)
     socket.join(`dashboard:${socket.userRole}`);
 
+    // Auto-join department room for staff users
+    if (user && user.department && socket.userRole !== 'CUSTOMER') {
+      socket.join(`dept:${user.department}`);
+      console.log(`User ${socket.userId} auto-joined dept:${user.department}`);
+    }
+
     // Chat room management
     socket.on('chat:join', ({ sessionId }) => {
       if (sessionId) {
@@ -75,6 +81,7 @@ const initializeSocket = (io) => {
       }
     });
 
+    // Manual department join (for staff viewing other departments)
     socket.on('chat:joinDept', ({ department }) => {
       if (department && socket.userRole !== 'CUSTOMER') {
         socket.join(`dept:${department}`);
@@ -143,6 +150,11 @@ const emitToUsers = (io, userIds, eventName, data) => {
   });
 };
 
+// Emit to department room
+const emitToDepartment = (io, department, eventName, data) => {
+  io.to(`dept:${department}`).emit(eventName, data);
+};
+
 module.exports = {
   initializeSocket,
   emitToRole,
@@ -150,5 +162,6 @@ module.exports = {
   emitToRoleHierarchy,
   emitToUser,
   emitToUsers,
+  emitToDepartment,
   broadcastToAll,
 };

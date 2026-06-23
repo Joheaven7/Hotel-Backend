@@ -9,15 +9,23 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   try {
     const { _id: userId, role } = req.user;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, type, unread } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const filter = {
       $or: [
         { targetRoles: role },
-        { userId: userId },
+        { receiverId: userId },
       ],
     };
+
+    if (type) {
+      filter.type = type;
+    }
+    
+    if (unread === 'true') {
+      filter['readBy.userId'] = { $ne: userId };
+    }
 
     const [notifications, total, unreadCount] = await Promise.all([
       Notification.find(filter)
@@ -48,7 +56,7 @@ router.get('/unread-count', async (req, res) => {
   try {
     const { _id: userId, role } = req.user;
     const filter = {
-      $or: [{ targetRoles: role }, { userId }],
+      $or: [{ targetRoles: role }, { receiverId: userId }],
       'readBy.userId': { $ne: userId },
     };
     const count = await Notification.countDocuments(filter);
@@ -83,17 +91,14 @@ router.patch('/read-all', async (req, res) => {
   try {
     const { _id: userId, role } = req.user;
     const filter = {
-      $or: [{ targetRoles: role }, { userId }],
+      $or: [{ targetRoles: role }, { receiverId: userId }],
       'readBy.userId': { $ne: userId },
     };
-    const unread = await Notification.find(filter).select('_id readBy');
-    await Promise.all(
-      unread.map((n) => {
-        n.readBy.push({ userId });
-        return n.save();
-      })
+    const result = await Notification.updateMany(
+      filter,
+      { $push: { readBy: { userId, readAt: new Date() } } }
     );
-    res.json({ message: 'All marked as read', count: unread.length });
+    res.json({ message: 'All marked as read', count: result.modifiedCount });
   } catch (error) {
     res.status(500).json({ message: 'Failed to mark all as read', error: error.message });
   }

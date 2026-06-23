@@ -87,6 +87,7 @@ const createMonthlyPayroll = async (req, res) => {
       title:        'Payroll Draft Created',
       message:      `Payroll for ${month} created with ${populated.length} staff entries.`,
       type:         'PAYROLL_CREATED',
+      senderId:     req.user._id,
       targetRoles:  ['SUPER_ADMIN', 'ADMIN', 'HR'],
       resourceType: 'Payroll',
     });
@@ -531,6 +532,7 @@ const approvePayroll = async (req, res) => {
   title:        'Payroll Approved',
   message:      `Payroll entry has been approved and is ready for payment.`,
   type:         'PAYROLL_APPROVED',
+  senderId:     req.user._id,
   targetRoles:  ['SUPER_ADMIN', 'ACCOUNTANT', 'HR'],
   resourceId:   payroll._id,
   resourceType: 'Payroll',
@@ -566,6 +568,7 @@ const rejectPayroll = async (req, res) => {
   title:        'Payroll Rejected',
   message:      `Payroll entry was rejected: ${reason || 'No reason given'}.`,
   type:         'PAYROLL_REJECTED',
+  senderId:     req.user._id,
   targetRoles:  ['SUPER_ADMIN', 'HR'],
   resourceId:   payroll._id,
   resourceType: 'Payroll',

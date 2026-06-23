@@ -19,8 +19,10 @@ const notificationSchema = new mongoose.Schema(
     },
     // Which roles should see this notification (empty = all roles)
     targetRoles: [{ type: String, enum: ['SUPER_ADMIN', 'ADMIN', 'HR', 'ACCOUNTANT', 'STAFF', 'CUSTOMER'] }],
+    // The user who triggered the notification (optional)
+    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // Specific user (for personal notifications like booking confirmation)
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // Resource reference (reservation ID, payment ID, etc.)
     resourceId: { type: mongoose.Schema.Types.ObjectId, default: null },
     resourceType: { type: String, default: '' },
@@ -36,6 +38,7 @@ const notificationSchema = new mongoose.Schema(
 // TTL — auto-delete notifications older than 30 days
 notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 notificationSchema.index({ targetRoles: 1, createdAt: -1 });
-notificationSchema.index({ userId: 1, createdAt: -1 });
+notificationSchema.index({ receiverId: 1, createdAt: -1 });
+notificationSchema.index({ senderId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

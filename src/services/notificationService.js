@@ -9,20 +9,22 @@ const Notification = require('../models/Notification');
  * @param {string} options.message
  * @param {string} options.type         - NOTIFICATION TYPE enum
  * @param {string[]} options.targetRoles - roles that should see it
- * @param {string} [options.userId]     - specific user (personal notification)
+ * @param {string} [options.senderId]   - user who triggered the notification
+ * @param {string} [options.receiverId] - specific user (personal notification)
  * @param {string} [options.resourceId]
  * @param {string} [options.resourceType]
  */
 const createNotification = async (io, options) => {
   try {
-    const { title, message, type, targetRoles = [], userId = null, resourceId = null, resourceType = '' } = options;
+    const { title, message, type, targetRoles = [], senderId = null, receiverId = null, resourceId = null, resourceType = '' } = options;
 
     const notification = await Notification.create({
       title,
       message,
       type,
       targetRoles,
-      userId,
+      senderId,
+      receiverId,
       resourceId,
       resourceType,
     });
@@ -33,7 +35,8 @@ const createNotification = async (io, options) => {
       message,
       type,
       targetRoles,
-      userId,
+      senderId,
+      receiverId,
       resourceId,
       resourceType,
       isRead:    false,
@@ -43,8 +46,8 @@ const createNotification = async (io, options) => {
     if (!io) return notification;
 
     // Emit to specific user (personal notification)
-    if (userId) {
-      io.to(`user:${userId}`).emit('notification:new', payload);
+    if (receiverId) {
+      io.to(`user:${receiverId}`).emit('notification:new', payload);
     }
 
     // Emit to each target role
@@ -55,7 +58,7 @@ const createNotification = async (io, options) => {
     }
 
     // If no roles and no user — broadcast to all
-    if (!userId && targetRoles.length === 0) {
+    if (!receiverId && targetRoles.length === 0) {
       io.emit('notification:new', payload);
     }
 

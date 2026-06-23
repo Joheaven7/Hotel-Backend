@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const Message = require('../../models/Message');
 const ChatSession = require('../../models/ChatSession');
+const User = require('../../models/User');
 const authMiddleware = require('../../middlewares/auth');
-const { ROLES } = require('../../config/constants');
+const { ROLES, DEPARTMENTS } = require('../../config/constants');
+const { createNotification } = require('../../services/notificationService');
 
 router.use(authMiddleware);
 
@@ -178,7 +180,7 @@ router.get('/sessions/:id/messages', async (req, res) => {
             channelType: 'support',
             isDeleted: false,
         })
-            .populate('sender', 'firstName lastName role avatar')
+            .populate('senderId', 'firstName lastName role avatar')
             .sort({ createdAt: 1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -190,7 +192,7 @@ router.get('/sessions/:id/messages', async (req, res) => {
                 reservationId: req.params.id,
                 channelType: 'support',
                 'readBy.userId': { $ne: userId },
-                sender: { $ne: userId },
+                senderId: { $ne: userId },
             },
             { $push: { readBy: { userId } } }
         );
@@ -229,12 +231,12 @@ router.post('/sessions/:id/messages', async (req, res) => {
         const message = await Message.create({
             channelType: 'support',
             reservationId: req.params.id, // using reservationId field to store sessionId for simplicity
-            sender: req.user._id,
+            senderId: req.user._id,
             text: text.trim(),
             readBy: [{ userId: req.user._id }],
         });
 
-        await message.populate('sender', 'firstName lastName role avatar');
+        await message.populate('senderId', 'firstName lastName role avatar');
 
         // Update session last message and unread counts
         const isSenderStaff = isStaff(req.user.role);
@@ -246,6 +248,43 @@ router.post('/sessions/:id/messages', async (req, res) => {
                 ? { $inc: { unreadByCustomer: 1 } }
                 : { $inc: { unreadByStaff: 1 } }),
         });
+
+        // Chat → Notification integration: notify the other party
+        const senderName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim();
+        if (isSenderStaff) {
+            createNotification(req.io, {
+                title: 'New Message from Support',
+                message: `${senderName}: ${text.trim().slice(0, 80)}`,
+                type: 'SYSTEM_ALERT',
+                senderId: req.user._id,
+                receiverId: session.customerId,
+                resourceId: message._id,
+                resourceType: 'Message',
+            });
+        } else {
+            // Notify assigned staff, or broadcast to staff roles
+            if (session.assignedStaff) {
+                createNotification(req.io, {
+                    title: 'New Customer Message',
+                    message: `${senderName}: ${text.trim().slice(0, 80)}`,
+                    type: 'SYSTEM_ALERT',
+                    senderId: req.user._id,
+                    receiverId: session.assignedStaff,
+                    resourceId: message._id,
+                    resourceType: 'Message',
+                });
+            } else {
+                createNotification(req.io, {
+                    title: 'New Customer Message',
+                    message: `${senderName}: ${text.trim().slice(0, 80)}`,
+                    type: 'SYSTEM_ALERT',
+                    senderId: req.user._id,
+                    targetRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF'],
+                    resourceId: message._id,
+                    resourceType: 'Message',
+                });
+            }
+        }
 
         // Real-time delivery to the session room
         if (req.io) {
@@ -292,17 +331,19 @@ router.get('/department/:dept', async (req, res) => {
         const { page = 1, limit = 50 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        const messages = await Message.find({
+        const filter = {
             channelType: 'department',
             department: req.params.dept,
             isDeleted: false,
-        })
-            .populate('sender', 'firstName lastName role avatar employeeId')
+        };
+        const total = await Message.countDocuments(filter);
+        const messages = await Message.find(filter)
+            .populate('senderId', 'firstName lastName role avatar employeeId')
             .sort({ createdAt: 1 })
             .skip(skip)
             .limit(parseInt(limit));
 
-        res.json({ messages, department: req.params.dept });
+        res.json({ messages, department: req.params.dept, total, page: parseInt(page) });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch messages', error: err.message });
     }
@@ -315,23 +356,50 @@ router.post('/department/:dept', async (req, res) => {
             return res.status(403).json({ message: 'Internal channel — staff only' });
         }
 
+        // Validate department exists
+        const validDepts = Object.values(DEPARTMENTS);
+        if (!validDepts.includes(req.params.dept)) {
+            return res.status(400).json({ message: `Invalid department: ${req.params.dept}`, validDepartments: validDepts });
+        }
+
         const { text } = req.body;
         if (!text?.trim()) return res.status(400).json({ message: 'Message is required' });
 
         const message = await Message.create({
             channelType: 'department',
             department: req.params.dept,
-            sender: req.user._id,
+            senderId: req.user._id,
             text: text.trim(),
             readBy: [{ userId: req.user._id }],
         });
 
-        await message.populate('sender', 'firstName lastName role avatar employeeId');
+        await message.populate('senderId', 'firstName lastName role avatar employeeId');
 
         if (req.io) {
             req.io.to(`dept:${req.params.dept}`).emit('chat:departmentMessage', {
                 department: req.params.dept,
                 message,
+            });
+        }
+
+        // Chat → Notification: notify all users in department (except sender)
+        const senderName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim();
+        const deptUsers = await User.find({
+            department: req.params.dept,
+            _id: { $ne: req.user._id },
+            isActive: true,
+            role: { $ne: 'CUSTOMER' },
+        }).select('_id');
+
+        for (const u of deptUsers) {
+            createNotification(req.io, {
+                title: `Department Message: ${req.params.dept}`,
+                message: `${senderName}: ${text.trim().slice(0, 80)}`,
+                type: 'SYSTEM_ALERT',
+                senderId: req.user._id,
+                receiverId: u._id,
+                resourceId: message._id,
+                resourceType: 'Message',
             });
         }
 

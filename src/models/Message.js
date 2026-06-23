@@ -27,12 +27,12 @@ const messageSchema = new mongoose.Schema(
 
     // For 'direct': the two participants
     // For 'support': sender is customer, receiver is null (broadcast to staff role)
-    sender: {
+    senderId: {
       type:     mongoose.Schema.Types.ObjectId,
       ref:      'User',
       required: true,
     },
-    receiver: {
+    receiverId: {
       type:    mongoose.Schema.Types.ObjectId,
       ref:     'User',
       default: null,
@@ -65,8 +65,21 @@ const messageSchema = new mongoose.Schema(
 messageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 // Fast query indexes
-messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
 messageSchema.index({ channelType: 1, department: 1, createdAt: -1 });
 messageSchema.index({ reservationId: 1, createdAt: 1 });
+
+messageSchema.pre('validate', function(next) {
+  if (this.channelType === 'direct' && !this.receiverId) {
+    return next(new Error('receiverId is required for direct messages.'));
+  }
+  if (this.channelType === 'department' && !this.department) {
+    return next(new Error('department is required for department messages.'));
+  }
+  if (this.receiverId && this.department) {
+    return next(new Error('Message cannot have both receiverId and department.'));
+  }
+  next();
+});
 
 module.exports = mongoose.model('Message', messageSchema);

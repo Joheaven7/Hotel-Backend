@@ -60,6 +60,7 @@ const createMaintenance = async (req, res) => {
   title:        'Maintenance Request Created',
   message:      `New ${maintenance.priority?.toLowerCase()} priority maintenance request for Room ${maintenance.roomId?.roomNumber || ''}.`,
   type:         'MAINTENANCE_CREATED',
+  senderId:     req.user._id,
   targetRoles:  ['SUPER_ADMIN', 'ADMIN'],
   resourceId:   maintenance._id,
   resourceType: 'Maintenance',
@@ -179,7 +180,8 @@ if (maintenance.assignedTo) {
     title:        'Maintenance Task Assigned',
     message:      `You have been assigned a maintenance task: ${maintenance.description || 'See details'}.`,
     type:         'MAINTENANCE_UPDATED',
-    userId:       maintenance.assignedTo,
+    senderId:     req.user._id,
+    receiverId:   maintenance.assignedTo,
     resourceId:   maintenance._id,
     resourceType: 'Maintenance',
   });

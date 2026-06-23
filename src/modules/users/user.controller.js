@@ -55,6 +55,7 @@ const createUser = async (req, res) => {
           title: 'New Staff Member Added',
           message: `${firstName} ${lastName} joined as ${role}.`,
           type: 'STAFF_CREATED',
+          senderId: req.user._id,
           targetRoles: ['SUPER_ADMIN', 'ADMIN', 'HR'],
           resourceId: newUser._id,
           resourceType: 'User',

@@ -130,9 +130,9 @@ exports.verifyChapaPayment = async (req, res) => {
 
           createNotification(req.io, {
             title: 'Payment Successful',
-            message: `Your payment of ETB ${payment.amount?.toLocaleString()} was confirmed via Chapa.`,
+            message: `Payment of ETB ${payment.amount?.toLocaleString()} was confirmed via Chapa.`,
             type: 'PAYMENT_PAID',
-            userId: payment.customerEmail || null,
+            targetRoles: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'],
             resourceId: payment._id,
             resourceType: 'Payment',
           });
@@ -298,6 +298,7 @@ exports.markPaymentAsPaid = async (req, res) => {
       title: 'Payment Processed',
       message: `Payment of ETB ${payment.amount?.toLocaleString()} marked as paid.`,
       type: 'PAYMENT_PAID',
+      senderId: req.user._id,
       targetRoles: ['SUPER_ADMIN', 'ACCOUNTANT'],
       resourceId: payment._id,
       resourceType: 'Payment',
