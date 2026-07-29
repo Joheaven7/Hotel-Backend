@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Complaint = require('../../models/Complaint');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS, ROLES } = require('../../config/constants');
 const { createNotification } = require('../../services/notificationService');
 
 router.use(authMiddleware);
@@ -106,7 +106,7 @@ router.get('/', async (req, res) => {
 
 // ── GET /api/complaints/stats — summary for dashboard ────────────────────────
 router.get('/stats',
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.STAFF),
+    requirePermission(PERMISSIONS.COMPLAINTS.VIEW),
     async (req, res) => {
         try {
             const [byStatus, byCategory, byPriority, total] = await Promise.all([
@@ -159,7 +159,7 @@ router.get('/:id', async (req, res) => {
 
 // ── PATCH /api/complaints/:id — update status / assign ───────────────────────
 router.patch('/:id',
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.STAFF),
+    requirePermission(PERMISSIONS.COMPLAINTS.EDIT),
     async (req, res) => {
         try {
             const { status, assignedTo, priority } = req.body;

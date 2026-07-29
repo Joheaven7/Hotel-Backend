@@ -48,20 +48,31 @@ exports.generateAccessToken = generateAccessToken;
 exports.generateRefreshToken = generateRefreshToken;
 exports.getCookieOptions = getCookieOptions;
 
+const { DEFAULT_ROLE_PERMISSIONS } = require('../../config/constants');
+
 // Format user object consistently for all auth responses
-const formatUser = (user) => ({
-  id: user._id,
-  _id: user._id,
-  firstName: user.firstName || '',
-  lastName: user.lastName || '',
-  name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-  email: user.email,
-  phone: user.phone || '',
-  role: user.role,
-  isActive: user.isActive,
-  department: user.department || '',
-  createdAt: user.createdAt,
-});
+const formatUser = async (user) => {
+  // Use user's individual permissions; fall back to role defaults from constants
+  let permissions = user.permissions || [];
+  if (permissions.length === 0 && user.role) {
+    permissions = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+  }
+  return {
+    id: user._id,
+    _id: user._id,
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    username: user.username || '',
+    email: user.email,
+    phone: user.phone || '',
+    role: user.role,
+    permissions,
+    isActive: user.isActive,
+    department: user.department || '',
+    createdAt: user.createdAt,
+  };
+};
 
 exports.registerUser = async (req, res) => {
   try {
@@ -106,7 +117,7 @@ exports.registerUser = async (req, res) => {
     res.status(201).json({
       message: 'User registered successfully',
       token: accessToken,
-      user: formatUser(user),
+      user: await formatUser(user),
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -158,7 +169,7 @@ exports.loginUser = async (req, res) => {
     res.json({
       message: 'Login successful',
       token: accessToken,
-      user: formatUser(user),
+      user: await formatUser(user),
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -206,7 +217,7 @@ exports.refreshToken = async (req, res) => {
 
     res.json({
       token: newAccessToken,
-      user: formatUser(user),
+      user: await formatUser(user),
     });
   } catch (error) {
     console.error('Refresh token error:', error);
@@ -248,7 +259,7 @@ exports.getCurrentUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(formatUser(user));
+    res.json(await formatUser(user));
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch user' });
   }

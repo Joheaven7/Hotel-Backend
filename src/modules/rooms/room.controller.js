@@ -437,6 +437,52 @@ const getAvailableByType = async (req, res) => {
   }
 };
 
+const regenerateRoomQr = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const room = await Room.findById(roomId);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    room.regenerateQrToken();
+    await room.save();
+
+    if (req.io) {
+      req.io.emit('room:updated', room);
+    }
+
+    res.json({
+      message: 'Room QR Token regenerated successfully',
+      qrToken: room.qrToken,
+      room,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to regenerate QR Token', error: error.message });
+  }
+};
+
+const toggleRoomService = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const room = await Room.findById(roomId);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    room.enableRoomService = !room.enableRoomService;
+    await room.save();
+
+    if (req.io) {
+      req.io.emit('room:updated', room);
+    }
+
+    res.json({
+      message: `Room Service ${room.enableRoomService ? 'enabled' : 'disabled'} successfully`,
+      enableRoomService: room.enableRoomService,
+      room,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to toggle room service state', error: error.message });
+  }
+};
+
 module.exports = {
   createRoom,
   getAllRooms,
@@ -447,4 +493,6 @@ module.exports = {
   getRoomOccupancy,
   updateRoomStatus,
   getAvailableByType,
+  regenerateRoomQr,
+  toggleRoomService,
 };

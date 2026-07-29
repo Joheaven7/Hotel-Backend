@@ -1,3 +1,11 @@
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Promise Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+});
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -26,17 +34,40 @@ const maintenanceRoutes = require('./modules/maintenance/maintenance.routes');
 const dashboardRoutes = require('./modules/dashboards/dashboard.routes');
 const typesRoutes = require('./modules/types/types.routes');
 const availabilityRoutes = require('./modules/availability/availability.routes');
+const departmentRoutes = require('./modules/departments/department.routes');
+const roleRoutes = require('./modules/roles/role.routes');
+const permissionRoutes = require('./modules/permissions/permission.routes');
 
 const server = http.createServer(app);
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.MENU_FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.PORTAL_URL,
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
+  'http://localhost:5173',
+].filter(Boolean);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Mobile apps, Postman, server-to-server
+  if (allowedOrigins.includes(origin)) return true;
+  if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return true;
+  return false;
+};
+
 const io = new socketIo.Server(server, {
   cors: {
-    origin: [
-      process.env.CLIENT_URL,
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://n8vmx2pc-3001.inc1.devtunnels.ms'
-    ].filter(Boolean),
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Socket CORS blocked: ${origin}`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST'],
   },
@@ -45,15 +76,7 @@ const io = new socketIo.Server(server, {
 
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowed = [
-      process.env.CLIENT_URL,
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://n8vmx2pc-3001.inc1.devtunnels.ms'
-    ].filter(Boolean);
-
-    // Allow requests with no origin (mobile apps, Postman, server-to-server)
-    if (!origin || allowed.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS blocked: ${origin}`));
@@ -99,26 +122,22 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/dashboards', dashboardRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/permissions', permissionRoutes);
 app.use('/api/auditlogs', require('./modules/auditlogs/auditlog.routes'));
 app.use('/api/complaints', require('./modules/complaints/complaint.routes'));
 app.use('/api/notifications', require('./modules/notifications/notification.routes'));
 app.use('/api/types', typesRoutes);
 app.use('/api/availability', availabilityRoutes);
-// Public cached routes
-const cacheControl = (req, res, next) => {
-  res.set('Cache-Control', 'public, max-age=300'); // 5 minute cache
-  next();
-};
-
-app.use('/api/room-types/public', cacheControl, require('./modules/roomtypes/roomtype.routes'));
-app.use('/api/hall-types/public', cacheControl, require('./modules/halltypes/halltype.routes'));
-
-// General routes
+// General routes (public endpoints like /public are defined before authMiddleware in each router)
 app.use('/api/room-types', require('./modules/roomtypes/roomtype.routes'));
 app.use('/api/hall-types', require('./modules/halltypes/halltype.routes'));
 app.use('/api/upload', require('./modules/upload/upload.routes'));
 app.use('/api/chat', require('./modules/chat/chat.routes'));
 app.use('/api/invoices', require('./modules/invoices/invoice.routes'));
+app.use('/api/menu', require('./modules/restaurant/menu.routes'));
+app.use('/api/restaurant', require('./modules/restaurant/restaurant.routes'));
 
 
 
@@ -138,15 +157,23 @@ const startServer = async () => {
     await connectDB();
 
     try {
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Redis timeout')), 3000);
+      });
+
       const redisClient = await Promise.race([
-        connectRedis(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 3000))
+        connectRedis().then((client) => {
+          clearTimeout(timeoutId);
+          return client;
+        }),
+        timeoutPromise,
       ]);
       if (redisClient) {
         console.log('Redis connected');
       }
     } catch (err) {
-      console.warn('⚠️ Redis failed or timed out, continuing without it');
+      console.warn('⚠️ Redis failed or timed out, continuing without it:', err.message);
     }
 
     initializeSocket(io);

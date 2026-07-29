@@ -1,8 +1,8 @@
 const express = require('express');
 const reservationController = require('./reservation.controller');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 const { validateReservation, handleValidationErrors } = require('../../utils/validators');
 const { createRateLimiter } = require('../../middlewares/rateLimiter');
 const { auditLogger } = require('../../middlewares/auditLogger');
@@ -17,6 +17,15 @@ const bookingLimiter = createRateLimiter({
 
 // Get reviews (public route)
 router.get('/reviews', reservationController.getReviews);
+
+// Public Booking - Does not require authentication
+router.post(
+  '/public',
+  bookingLimiter,
+  validateReservation,
+  handleValidationErrors,
+  reservationController.createPublicReservation
+);
 
 router.use(authMiddleware);
 
@@ -39,63 +48,63 @@ router.get('/calendar/availability', reservationController.getAvailabilityCalend
 // Get single reservation
 router.get('/:reservationId', reservationController.getReservationById);
 
-
+// Confirm
 router.post(
   '/:reservationId/confirm',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+  requirePermission(PERMISSIONS.RESERVATIONS.APPROVE),
   auditLogger('RESERVATION_CONFIRM'),
   reservationController.confirmReservation
 );
 
-// Check-in — ADMIN/STAFF
+// Check-in
 router.post(
   '/:reservationId/check-in',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.RESERVATIONS.EDIT),
   auditLogger('RESERVATION_CHECKIN'),
   reservationController.checkInReservation
 );
 router.post(
   '/:reservationId/checkin',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.RESERVATIONS.EDIT),
   auditLogger('RESERVATION_CHECKIN'),
   reservationController.checkInReservation
 );
 
-// Check-out — ADMIN/STAFF
+// Check-out
 router.post(
   '/:reservationId/check-out',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.RESERVATIONS.EDIT),
   auditLogger('RESERVATION_CHECKOUT'),
   reservationController.checkOutReservation
 );
 router.post(
   '/:reservationId/checkout',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.RESERVATIONS.EDIT),
   auditLogger('RESERVATION_CHECKOUT'),
   reservationController.checkOutReservation
 );
 
-// Cancel — owner or ADMIN+ (ownership check in controller)
+// Cancel — ownership check in controller allows customers to cancel their own
 router.post(
   '/:reservationId/cancel',
   auditLogger('RESERVATION_CANCEL'),
   reservationController.cancelReservation
 );
 
-// Soft delete — SUPER_ADMIN only
+// Soft delete
 router.delete(
   '/:reservationId',
-  roleCheck(ROLES.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.SYSTEM.RESTORE_DATA),
   auditLogger('RESERVATION_DELETE'),
   reservationController.deleteReservation
 );
 
-// Undo soft delete — SUPER_ADMIN only
+// Undo soft delete
 router.post(
   '/:reservationId/undo-delete',
-  roleCheck(ROLES.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.SYSTEM.RESTORE_DATA),
   auditLogger('RESERVATION_RESTORE'),
   reservationController.undoDeleteReservation
 );
 
-module.exports = router;
+module.exports = router;

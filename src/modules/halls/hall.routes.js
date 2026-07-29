@@ -1,8 +1,8 @@
 const express = require('express');
 const hallController = require('./hall.controller');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck }  = require('../../middlewares/roleCheck');
-const { ROLES }      = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 const { auditLogger } = require('../../middlewares/auditLogger');
 
 const router = express.Router();
@@ -14,7 +14,7 @@ router.get('/', hallController.getAllHalls);
 router.get(
   '/public-catalog',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.HALLS.VIEW),
   hallController.getPublicLandingHalls
 );
 
@@ -22,49 +22,49 @@ router.get(
 router.get('/:hallId', hallController.getHallById);
 
 // ── Protected ─────────────────────────────────────────────────────────────────
-// Create — ADMIN only (removed STAFF — they don't manage hall inventory)
+// Create
 router.post(
   '/',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.HALLS.CREATE),
   auditLogger('HALL_CRUD'),
   hallController.createHall
 );
 
-// Update — ADMIN only
+// Update
 router.patch(
   '/:hallId',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.HALLS.EDIT),
   auditLogger('HALL_CRUD'),
   hallController.updateHall
 );
 
-// Delete — ADMIN only
+// Delete
 router.delete(
   '/:hallId',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.HALLS.DELETE),
   auditLogger('HALL_CRUD'),
   hallController.deleteHall
 );
 
-// Restore — ADMIN only
+// Restore
 router.post(
   '/:hallId/restore',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.HALLS.DELETE),
   auditLogger('HALL_CRUD'),
   hallController.restoreHall
 );
 
-// Toggle visibility — ADMIN only
+// Toggle visibility
 router.patch(
   '/:hallId/toggle-visibility',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.HALLS.EDIT),
   auditLogger('HALL_CRUD'),
   hallController.toggleHallVisibility
 );
 
-module.exports = router;
+module.exports = router;

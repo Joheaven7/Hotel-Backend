@@ -11,6 +11,14 @@ const initializeSocket = (io) => {
       const pubClient = redisClient.duplicate();
       const subClient = redisClient.duplicate();
 
+      pubClient.on('error', (err) => {
+        console.log('⚠️  Redis pubClient connection error:', err.message || err.code || err);
+      });
+
+      subClient.on('error', (err) => {
+        console.log('⚠️  Redis subClient connection error:', err.message || err.code || err);
+      });
+
       Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
         io.adapter(createAdapter(pubClient, subClient));
         console.log('✅ Socket.io Redis adapter initialized');
@@ -21,10 +29,27 @@ const initializeSocket = (io) => {
   }
 
   // Middleware for socket authentication
-  io.use((socket, next) => {
-    const token = socket.handshake.auth.token;
+  io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    const roomToken = socket.handshake.auth?.roomToken || socket.handshake.query?.token || socket.handshake.query?.roomToken;
+
+    if (roomToken) {
+      try {
+        const Room = require('../models/Room');
+        const room = await Room.findOne({ qrToken: roomToken });
+        if (room) {
+          socket.isGuest = true;
+          socket.roomToken = roomToken;
+          socket.roomId = room._id;
+          return next();
+        }
+      } catch (err) {}
+    }
+
     if (!token) {
-      return next(new Error('Authentication error'));
+      // Allow guest socket connection for QR Menu tracking & support ticket chat
+      socket.isGuest = true;
+      return next();
     }
 
     try {
@@ -38,11 +63,30 @@ const initializeSocket = (io) => {
       socket.userEmail = decoded.email;
       next();
     } catch (error) {
-      next(new Error('Invalid token'));
+      // Fallback guest mode instead of throwing connection error
+      socket.isGuest = true;
+      next();
     }
   });
 
   io.on('connection', async (socket) => {
+    if (socket.isGuest) {
+      if (socket.roomToken) {
+        socket.join(`room_${socket.roomToken}`);
+      }
+
+      socket.on('subscribe:room', (roomToken) => {
+        if (roomToken) socket.join(`room_${roomToken}`);
+      });
+
+      socket.on('subscribe:ticket', (ticketNumber) => {
+        if (ticketNumber) socket.join(`ticket_${ticketNumber}`);
+      });
+
+      socket.on('disconnect', () => {});
+      return;
+    }
+
     console.log(`User connected: ${socket.userId} (${socket.userRole})`);
 
     let user = null;
@@ -86,6 +130,8 @@ const initializeSocket = (io) => {
       if (department && socket.userRole !== 'CUSTOMER') {
         socket.join(`dept:${department}`);
       }
+      if (['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'MANAGER'].includes(user.role)) socket.join('staff_management');
+      if (['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_MANAGER', 'CHEF', 'KITCHEN_STAFF', 'ROOM_SERVICE_STAFF'].includes(user.role)) socket.join('staff_restaurant');
     });
 
     socket.on('chat:typing', ({ sessionId, isTyping }) => {

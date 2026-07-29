@@ -10,6 +10,7 @@ const {
   PAYMENT_STATUS,
   MAINTENANCE_STATUS,
 } = require('../../config/constants');
+const FoodOrder = require('../../models/FoodOrder');
 
 // ─── SUPER_ADMIN Dashboard ────────────────────────────────────────────────────
 const superAdminDashboard = async (req, res) => {
@@ -27,6 +28,9 @@ const superAdminDashboard = async (req, res) => {
       openMaintenance,
       inProgressMaintenance,
       revenueByMonth,
+      foodRevenue,
+      foodOrdersCount,
+      recentFoodOrders,
     ] = await Promise.all([
       User.aggregate([
         { $match: { isActive: true, deletedAt: { $eq: null } } },
@@ -62,6 +66,15 @@ const superAdminDashboard = async (req, res) => {
         { $sort: { _id: -1 } },
         { $limit: 6 },
       ]),
+      FoodOrder.aggregate([
+        { $match: { status: { $ne: 'CANCELLED' }, paymentStatus: 'PAID' } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+      ]),
+      FoodOrder.countDocuments({ status: { $ne: 'CANCELLED' } }),
+      FoodOrder.find({ status: { $ne: 'CANCELLED' } })
+        .populate('room', 'roomNumber')
+        .sort({ createdAt: -1 })
+        .limit(5),
     ]);
 
     res.json({
@@ -76,6 +89,11 @@ const superAdminDashboard = async (req, res) => {
       monthlyPayrollCost: monthlyPayroll[0]?.total || 0,
       maintenanceStatus: { open: openMaintenance, inProgress: inProgressMaintenance },
       revenueByMonth,
+      foodSales: {
+        revenue: foodRevenue[0]?.total || 0,
+        ordersCount: foodOrdersCount,
+        recentOrders: recentFoodOrders,
+      },
       timestamp: new Date(),
     });
   } catch (error) {

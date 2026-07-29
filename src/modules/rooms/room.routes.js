@@ -1,8 +1,8 @@
 const express = require('express');
 const roomController = require('./room.controller');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 const { auditLogger } = require('../../middlewares/auditLogger');
 
 const router = express.Router();
@@ -15,11 +15,11 @@ router.get('/', roomController.getAllRooms);
 // Landing page Booking.jsx calls this endpoint
 router.get('/availability', roomController.getAllRooms);
 
-// Occupancy report — MUST come before /:roomId
+// Occupancy report
 router.get(
   '/occupancy/report',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.ROOMS.VIEW),
   roomController.getRoomOccupancy
 );
 
@@ -34,49 +34,67 @@ router.get(
 router.get('/:roomId', roomController.getRoomById);
 
 // ── Protected ─────────────────────────────────────────────────────────────────
-// Create — ADMIN only
+// Create
 router.post(
   '/',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.ROOMS.CREATE),
   auditLogger('ROOM_CRUD'),
   roomController.createRoom
 );
 
-// Full update — ADMIN only
+// Full update
 router.put(
   '/:roomId',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.ROOMS.EDIT),
   auditLogger('ROOM_CRUD'),
   roomController.updateRoom
 );
 
-// Status update — ADMIN/STAFF
+// Status update
 router.patch(
   '/:roomId/status',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.STAFF),
+  requirePermission(PERMISSIONS.ROOMS.EDIT),
   auditLogger('ROOM_CRUD'),
   roomController.updateRoomStatus
 );
 
-// Delete — ADMIN only
+// Delete
 router.delete(
   '/:roomId',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.ROOMS.DELETE),
   auditLogger('ROOM_CRUD'),
   roomController.deleteRoom
 );
 
-// Restore — ADMIN only
+// Restore
 router.post(
   '/:roomId/restore',
   authMiddleware,
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.ROOMS.DELETE),
   auditLogger('ROOM_CRUD'),
   roomController.restoreRoom
 );
 
-module.exports = router;
+// Regenerate QR Token (Super Admin / Admin)
+router.post(
+  '/:roomId/regenerate-qr',
+  authMiddleware,
+  requirePermission(PERMISSIONS.ROOMS.EDIT),
+  auditLogger('ROOM_CRUD'),
+  roomController.regenerateRoomQr
+);
+
+// Toggle Room Service (Super Admin / Admin)
+router.patch(
+  '/:roomId/toggle-room-service',
+  authMiddleware,
+  requirePermission(PERMISSIONS.ROOMS.EDIT),
+  auditLogger('ROOM_CRUD'),
+  roomController.toggleRoomService
+);
+
+module.exports = router;

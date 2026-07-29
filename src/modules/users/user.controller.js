@@ -6,12 +6,13 @@ const {
   ROLES,
   ROLE_CREATION_PERMISSIONS,
   ROLE_HIERARCHY,
+  DEFAULT_ROLE_PERMISSIONS,
 } = require('../../config/constants');
 
 // Create user (with role hierarchy validation)
 const createUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, role, department, baseSalary } = req.body;
+    const { firstName, lastName, email, password, phone, username, role, department, baseSalary, permissions } = req.body;
 
 
 
@@ -32,14 +33,24 @@ const createUser = async (req, res) => {
       });
     }
 
+    // Resolve permissions: use explicit permissions from SUPER_ADMIN, else default for the role
+    let resolvedPermissions = [];
+    if (req.user.role === ROLES.SUPER_ADMIN && Array.isArray(permissions) && permissions.length > 0) {
+      resolvedPermissions = permissions;
+    } else {
+      resolvedPermissions = DEFAULT_ROLE_PERMISSIONS[role] || [];
+    }
+
     const newUser = new User({
       firstName,
       lastName,
       email,
       password,
       phone,
+      username: username || undefined,
       role,
-      isActive: true, // CRITICAL: Set default to true
+      permissions: resolvedPermissions,
+      isActive: true,
       ...(role !== ROLES.CUSTOMER && { department, baseSalary }),
     });
 
@@ -100,10 +111,18 @@ const getAllUsers = async (req, res) => {
 
     if (rolesList.length > 0) {
       query.role = rolesList.length === 1 ? rolesList[0] : { $in: rolesList };
-    } else if (excludeRole) {
-      query.role = { $ne: excludeRole.trim() };
-    } else if (excludeRolesList.length > 0) {
-      query.role = { $nin: excludeRolesList };
+    } else {
+      // By default, exclude CUSTOMER from the users list (which is for staff/employee management)
+      if (excludeRolesList.length === 0 && !excludeRole) {
+        query.role = { $ne: 'CUSTOMER' };
+      } else if (excludeRole) {
+        const excludes = [excludeRole.trim()];
+        if (!excludes.includes('CUSTOMER')) excludes.push('CUSTOMER');
+        query.role = { $nin: excludes };
+      } else if (excludeRolesList.length > 0) {
+        if (!excludeRolesList.includes('CUSTOMER')) excludeRolesList.push('CUSTOMER');
+        query.role = { $nin: excludeRolesList };
+      }
     }
 
     if (isActive !== undefined) {
@@ -190,6 +209,7 @@ const updateUser = async (req, res) => {
     const {
       role, isActive, baseSalary, department,
       position, workDescription, employmentStatus, hireDate,
+      permissions,
       ...safeFields
     } = req.body;
 
@@ -198,6 +218,11 @@ const updateUser = async (req, res) => {
     // Only SUPER_ADMIN can change roles
     if (role !== undefined && requesterRole === ROLES.SUPER_ADMIN) {
       updateData.role = role;
+    }
+
+    // Only SUPER_ADMIN can update permissions override
+    if (permissions !== undefined && requesterRole === ROLES.SUPER_ADMIN) {
+      updateData.permissions = permissions;
     }
 
     // SUPER_ADMIN and ADMIN can toggle isActive
@@ -381,6 +406,53 @@ const assignRole = async (req, res) => {
   }
 };
 
+// Update user permissions override (SUPER_ADMIN only)
+const updateUserPermissions = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { permissions } = req.body;
+
+    if (!Array.isArray(permissions)) {
+      return res.status(400).json({ message: 'Permissions must be an array' });
+    }
+
+    const userToUpdate = await User.findById(userId);
+    if (!userToUpdate) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const oldPermissions = userToUpdate.permissions || [];
+
+    userToUpdate.permissions = permissions;
+    userToUpdate.updatedBy = req.user._id;
+    await userToUpdate.save();
+
+    await AuditLog.create({
+      userId: req.user._id,
+      actionType: 'PERMISSION_CHANGE',
+      resource: `User:${userId}`,
+      details: {
+        targetUserId: userId,
+        oldPermissions,
+        newPermissions: permissions,
+      },
+      ipAddress: req.ip || req.socket.remoteAddress,
+    });
+
+    const sanitizedUser = userToUpdate.toObject();
+    delete sanitizedUser.password;
+    delete sanitizedUser.refreshToken;
+
+    res.json({
+      message: 'User permissions updated successfully',
+      user: sanitizedUser,
+    });
+  } catch (error) {
+    console.error('updateUserPermissions error:', error);
+    res.status(500).json({ message: 'Failed to update user permissions' });
+  }
+};
+
 module.exports = {
   createUser,
   getAllUsers,
@@ -389,4 +461,5 @@ module.exports = {
   deleteUser,
   restoreUser,
   assignRole,
+  updateUserPermissions,
 };

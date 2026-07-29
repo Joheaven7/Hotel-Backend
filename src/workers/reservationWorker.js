@@ -4,17 +4,19 @@ const Hall = require('../models/Hall');
 const { RESERVATION_STATUS, ROOM_STATUS } = require('../config/constants');
 const { createNotification } = require('../services/notificationService');
 
-const releaseResource = async (reservation) => {
+const releaseResource = async (reservation, wasCheckedIn = false) => {
+  if (!wasCheckedIn) return; // Only reset if the room was actually occupied (checked-in)
+
   if (reservation.roomId) {
     await Room.findByIdAndUpdate(reservation.roomId, {
       status: ROOM_STATUS.AVAILABLE,
-      housekeepingStatus: 'CLEAN',
+      housekeepingStatus: 'DIRTY',
     });
   }
   if (reservation.hallId) {
     await Hall.findByIdAndUpdate(reservation.hallId, {
       status: ROOM_STATUS.AVAILABLE,
-      housekeepingStatus: 'CLEAN',
+      housekeepingStatus: 'DIRTY',
     });
   }
 };
@@ -34,7 +36,7 @@ const processReservationJob = async (job) => {
     if (reservation.status !== RESERVATION_STATUS.PENDING) return;
     reservation.status = RESERVATION_STATUS.CANCELLED;
     await reservation.save();
-    await releaseResource(reservation);
+    // Do not call releaseResource here because the room/hall was never checked-in/occupied
     await createNotification(null, {
       title: 'Reservation Cancelled',
       message: `Reservation ${reservation.reservationNumber} was automatically cancelled after payment was not completed.`,
@@ -73,7 +75,7 @@ const processReservationJob = async (job) => {
     reservation.status = RESERVATION_STATUS.CHECKED_OUT;
     reservation.checkedOutAt = new Date();
     await reservation.save();
-    await releaseResource(reservation);
+    await releaseResource(reservation, true);
     await createNotification(null, {
       title: 'Auto Checkout Completed',
       message: `Reservation ${reservation.reservationNumber} has been automatically checked out at the scheduled time.`,

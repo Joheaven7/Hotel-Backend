@@ -20,7 +20,7 @@ const hallSchema = new mongoose.Schema(
     // ── Operational status ────────────────────────────────────────────────
     status: {
       type: String,
-      enum: ['AVAILABLE', 'BOOKED', 'MAINTENANCE'],
+      enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE'],
       default: 'AVAILABLE',
     },
 

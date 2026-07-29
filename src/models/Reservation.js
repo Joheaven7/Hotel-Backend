@@ -137,6 +137,7 @@ reservationSchema.pre('save', async function (next) {
   const query = {
     _id: { $ne: this._id },
     status: { $in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+    deleted: { $ne: true },
     $or: [{ checkInDate: { $lt: this.checkOutDate }, checkOutDate: { $gt: this.checkInDate } }],
   };
 

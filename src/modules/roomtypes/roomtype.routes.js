@@ -3,8 +3,8 @@ const router = express.Router();
 const RoomType = require('../../models/RoomType');
 const Room = require('../../models/Room');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 
 // ── PUBLIC — gallery reads only marketing fields ─────────────────────────────
 router.get('/public', async (req, res) => {
@@ -22,7 +22,7 @@ router.get('/public', async (req, res) => {
 router.use(authMiddleware);
 
 // GET all room types (admin view — includes unpublished)
-router.get('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.STAFF), async (req, res) => {
+router.get('/', requirePermission(PERMISSIONS.ROOMS.VIEW), async (req, res) => {
     try {
         const types = await RoomType.find({ isDeleted: false }).sort({ basePricePerNight: 1 });
 
@@ -41,7 +41,7 @@ router.get('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.S
 });
 
 // GET single room type
-router.get('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async (req, res) => {
+router.get('/:id', requirePermission(PERMISSIONS.ROOMS.VIEW), async (req, res) => {
     try {
         const type = await RoomType.findOne({ _id: req.params.id, isDeleted: false });
         if (!type) return res.status(404).json({ message: 'Room type not found' });
@@ -54,7 +54,7 @@ router.get('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), asy
 });
 
 // CREATE room type
-router.post('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async (req, res) => {
+router.post('/', requirePermission(PERMISSIONS.ROOMS.CREATE), async (req, res) => {
     try {
         const { name, description, basePricePerNight, maxOccupancy, amenities, images, isPublished } = req.body;
 
@@ -86,7 +86,7 @@ router.post('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async
 });
 
 // UPDATE room type — cascades price/amenity/occupancy to all linked rooms
-router.put('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async (req, res) => {
+router.put('/:id', requirePermission(PERMISSIONS.ROOMS.EDIT), async (req, res) => {
     try {
         const { name, description, basePricePerNight, maxOccupancy, amenities, images, isPublished } = req.body;
 
@@ -130,7 +130,7 @@ router.put('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), asy
 });
 
 // SOFT DELETE room type
-router.delete('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN), async (req, res) => {
+router.delete('/:id', requirePermission(PERMISSIONS.ROOMS.DELETE), async (req, res) => {
     try {
         // Block delete if physical rooms are still linked
         const roomCount = await Room.countDocuments({ roomTypeId: req.params.id, isDeleted: false });

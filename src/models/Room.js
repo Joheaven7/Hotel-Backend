@@ -49,14 +49,32 @@ const roomSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     images: [String],
 
+    // ── QR Code Room Service ──────────────────────────────────────────────
+    qrToken: { type: String, unique: true, sparse: true },
+    qrCodeImage: { type: String, default: null },
+    enableRoomService: { type: Boolean, default: true },
+    lastQrScanAt: { type: Date, default: null },
+    qrScanCount: { type: Number, default: 0 },
+
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
+roomSchema.methods.regenerateQrToken = function () {
+  const crypto = require('crypto');
+  this.qrToken = crypto.randomBytes(16).toString('hex');
+  return this.qrToken;
+};
+
 // When roomTypeId is set, auto-populate legacy fields so existing code still works
 roomSchema.pre('save', async function (next) {
+  if (!this.qrToken) {
+    const crypto = require('crypto');
+    this.qrToken = crypto.randomBytes(16).toString('hex');
+  }
+
   if (this.isModified('roomTypeId') && this.roomTypeId) {
     try {
       const RoomType = mongoose.model('RoomType');

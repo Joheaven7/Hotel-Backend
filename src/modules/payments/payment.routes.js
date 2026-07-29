@@ -11,13 +11,16 @@ const {
   getPaymentStats,
 } = require('./payment.controller');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
+const { requirePermission } = require('../../middlewares/permissionCheck');
 const { auditLogger } = require('../../middlewares/auditLogger');
-const { ROLES } = require('../../config/constants');
+const { PERMISSIONS } = require('../../config/constants');
 
 const router = express.Router();
 
-// All routes require authentication
+// Public payment verification
+router.post('/public/verify', verifyChapaPayment);
+
+// All routes below require authentication
 router.use(authMiddleware);
 
 // Chapa payment initiation and verification - any authenticated user
@@ -26,35 +29,36 @@ router.post('/chapa/verify', verifyChapaPayment);
 router.post('/intent/create', createPaymentIntent);
 router.post('/intent/finalize', finalizePaymentIntent);
 
-// Get all payments - SUPER_ADMIN, ADMIN, ACCOUNTANT see all; CUSTOMER sees their own (filtered in controller)
+// Get all payments (CUSTOMER sees their own — filtered in controller)
 router.get(
   '/',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.CUSTOMER),
+  requirePermission(PERMISSIONS.PAYMENTS.VIEW),
   getAllPayments
 );
 
-// Payment stats - admin/accountant only
+// Payment stats
 router.get(
   '/stats/overview',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYMENTS.VIEW),
   getPaymentStats
 );
 
 // Get single payment - any authenticated user (controller handles ownership for CUSTOMER)
 router.get('/:id', getPaymentById);
 
-// Mark as paid/failed - admin/accountant only
+// Mark as paid
 router.put(
   '/:id/paid',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYMENTS.APPROVE),
   auditLogger('PAYMENT_PROCESS'),
   markPaymentAsPaid
 );
 
+// Mark as failed
 router.put(
   '/:id/failed',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYMENTS.APPROVE),
   markPaymentAsFailed
 );
 
-module.exports = router;
+module.exports = router;

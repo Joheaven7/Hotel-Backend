@@ -137,20 +137,25 @@ const confirmReservation = async ({ reservationId, req }) => {
 };
 
 const cancelReservation = async ({ reservation, reason }) => {
+  const wasCheckedIn = reservation.status === RESERVATION_STATUS.CHECKED_IN;
   reservation.status = RESERVATION_STATUS.CANCELLED;
   if (reason) reservation.notes = reason;
   await reservation.save();
-  if (reservation.roomId) {
-    await Room.findByIdAndUpdate(reservation.roomId._id, {
-      status: ROOM_STATUS.AVAILABLE,
-      housekeepingStatus: 'CLEAN',
-    });
-  }
-  if (reservation.hallId) {
-    await Hall.findByIdAndUpdate(reservation.hallId._id, {
-      status: ROOM_STATUS.AVAILABLE,
-      housekeepingStatus: 'CLEAN',
-    });
+
+  // Only reset room/hall status if the guest was actually checked in (room was OCCUPIED)
+  if (wasCheckedIn) {
+    if (reservation.roomId) {
+      await Room.findByIdAndUpdate(reservation.roomId._id || reservation.roomId, {
+        status: ROOM_STATUS.AVAILABLE,
+        housekeepingStatus: 'DIRTY',
+      });
+    }
+    if (reservation.hallId) {
+      await Hall.findByIdAndUpdate(reservation.hallId._id || reservation.hallId, {
+        status: ROOM_STATUS.AVAILABLE,
+        housekeepingStatus: 'DIRTY',
+      });
+    }
   }
   return reservation;
 };

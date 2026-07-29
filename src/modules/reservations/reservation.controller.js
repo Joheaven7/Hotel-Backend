@@ -259,7 +259,6 @@ exports.createReservation = async (req, res) => {
         title: `New Booking: ${roomLabel}`,
         message: `${customerName} has reserved ${roomLabel} from ${checkIn.toLocaleDateString()} to ${checkOut.toLocaleDateString()}.`,
         type: 'RESERVATION_CREATED',
-        senderId: req.user._id,
         targetRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF'],
         resourceId: newReservation._id,
         resourceType: 'Reservation',
@@ -271,8 +270,7 @@ exports.createReservation = async (req, res) => {
           title: 'Booking Confirmed',
           message: `Your reservation ${reservationNumber} has been received. ${roomLabel} is held for you.`,
           type: 'RESERVATION_CREATED',
-          senderId: req.user._id,
-          receiverId: customerId,
+          userId: customerId,
           resourceId: newReservation._id,
           resourceType: 'Reservation',
         });
@@ -426,8 +424,7 @@ exports.confirmReservation = async (req, res) => {
       title: 'Reservation Confirmed',
       message: `Reservation ${reservation.reservationNumber} has been confirmed.`,
       type: 'RESERVATION_CONFIRMED',
-      senderId: req.user._id,
-      receiverId: reservation.customerId?._id || reservation.customerId,
+      userId: reservation.customerId?._id || reservation.customerId,
       resourceId: reservation._id,
       resourceType: 'Reservation',
     });
@@ -525,7 +522,6 @@ exports.checkOutReservation = async (req, res) => {
         title: 'Room Needs Cleaning',
         message: `Room ${reservation.roomId.roomNumber} is dirty after guest checkout — please clean before next booking.`,
         type: 'MAINTENANCE_UPDATED',
-        senderId: req.user._id,
         targetRoles: ['STAFF', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'],
         resourceId: reservation.roomId._id,
         resourceType: 'Room',
@@ -628,9 +624,8 @@ exports.cancelReservation = async (req, res) => {
       title: 'Reservation Cancelled',
       message: `Reservation ${cancelledReservation.reservationNumber} has been cancelled.`,
       type: 'RESERVATION_CANCELLED',
-      senderId: req.user._id,
       targetRoles: ['SUPER_ADMIN', 'ADMIN'],
-      receiverId: cancelledReservation.customerId?._id || cancelledReservation.customerId,
+      userId: cancelledReservation.customerId?._id || cancelledReservation.customerId,
       resourceId: cancelledReservation._id,
       resourceType: 'Reservation',
     });
@@ -738,6 +733,11 @@ exports.deleteReservation = async (req, res) => {
   try {
     const { reservationId } = req.params;
 
+    // Enforce Super Admin only
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Access denied: Only Super Admin can delete reservations.' });
+    }
+
     const reservation = await Reservation.findById(reservationId);
     if (!reservation) {
       return res.status(404).json({ message: 'Reservation not found' });
@@ -747,10 +747,35 @@ exports.deleteReservation = async (req, res) => {
       return res.status(400).json({ message: 'Reservation is already deleted' });
     }
 
+    const wasCheckedIn = reservation.status === 'CHECKED_IN';
+
+    // 1. Soft delete the reservation
     reservation.deleted = true;
     reservation.deletedAt = new Date();
     reservation.deletedBy = req.user._id;
     await reservation.save();
+
+    // 2. Recalculate room/hall status if checked in
+    if (wasCheckedIn) {
+      if (reservation.roomId) {
+        await Room.findByIdAndUpdate(reservation.roomId, {
+          status: 'AVAILABLE',
+          housekeepingStatus: 'DIRTY',
+        });
+      }
+      if (reservation.hallId) {
+        await Hall.findByIdAndUpdate(reservation.hallId, {
+          status: 'AVAILABLE',
+          housekeepingStatus: 'DIRTY',
+        });
+      }
+    }
+
+    // 3. Mark linked pending payments as failed
+    await Payment.updateMany(
+      { reservation: reservation._id, status: { $in: ['PENDING', 'UNPAID'] } },
+      { $set: { status: 'FAILED', failureReason: 'Reservation deleted by Super Admin' } }
+    );
 
     if (req.io) {
       req.io.emit('reservation:deleted', { reservationId: reservation._id });
@@ -758,9 +783,8 @@ exports.deleteReservation = async (req, res) => {
 
     createNotification(req.io, {
       title: 'Reservation Deleted',
-      message: `Reservation ${reservation.reservationNumber} has been soft-deleted by admin.`,
+      message: `Reservation ${reservation.reservationNumber} has been deleted by Super Admin.`,
       type: 'RESERVATION_CANCELLED',
-      senderId: req.user._id,
       targetRoles: ['SUPER_ADMIN', 'ADMIN'],
       resourceId: reservation._id,
       resourceType: 'Reservation',
@@ -803,4 +827,167 @@ exports.undoDeleteReservation = async (req, res) => {
   }
 };
 
-module.exports = exports;
+exports.createPublicReservation = async (req, res) => {
+  let lockKey = null;
+  let lockValue = null;
+  let step = 'init';
+
+  try {
+    const {
+      roomTypeId,
+      hallTypeId,
+      checkInDate,
+      checkOutDate,
+      numberOfGuests,
+      specialRequests,
+      fullName,
+      email,
+      phone,
+      idNumber,
+      category = 'ROOM',
+      amount
+    } = req.body;
+
+    const User = require('../../models/User');
+    const chapa = require('../../config/chapa');
+    const Payment = require('../../models/Payment');
+    const { encryptEmail } = require('../../utils/encryption');
+
+    // 1. Find or create guest user
+    step = 'Step1-FindOrCreateGuest';
+    let customer = null;
+    const rawCustomer = await User.collection.findOne({ email: encryptEmail(email) });
+    if (rawCustomer) {
+      customer = await User.findOne({ _id: rawCustomer._id }).setOptions({ includeDeleted: true });
+    }
+
+    if (!customer) {
+      customer = new User({
+        firstName: fullName.split(' ')[0],
+        lastName: fullName.split(' ').slice(1).join(' ') || '.',
+        email,
+        phone,
+        idNumber,
+        role: 'CUSTOMER',
+        password: Math.random().toString(36).slice(-8) + 'A1!'
+      });
+      await customer.save();
+    } else if (customer.deletedAt) {
+      customer.deletedAt = null;
+      customer.firstName = fullName.split(' ')[0];
+      customer.lastName = fullName.split(' ').slice(1).join(' ') || '.';
+      customer.phone = phone;
+      customer.idNumber = idNumber;
+      await customer.save();
+    }
+
+    // 2. ROH lock
+    step = 'Step2-ROHLock';
+    let assignedRoom = null;
+    let assignedHall = null;
+
+    if (category === 'ROOM') {
+      const lockResult = await require('../../services/rohEngine').findAndLockRoom({
+        roomTypeId,
+        checkIn: new Date(checkInDate),
+        checkOut: new Date(checkOutDate),
+        numberOfGuests: numberOfGuests || 1
+      });
+      if (lockResult.error) {
+        return res.status(400).json({ message: lockResult.message || 'No rooms available' });
+      }
+      assignedRoom = lockResult.room;
+      lockKey = lockResult.lockKey;
+      lockValue = lockResult.lockValue;
+    } else if (category === 'HALL') {
+      const lockResult = await require('../../services/rohEngine').findAndLockHall({
+        hallTypeId,
+        checkIn: new Date(checkInDate),
+        checkOut: new Date(checkOutDate),
+        numberOfGuests: numberOfGuests || 1
+      });
+      if (lockResult.error) {
+        return res.status(400).json({ message: lockResult.message || 'No halls available' });
+      }
+      assignedHall = lockResult.hall;
+      lockKey = lockResult.lockKey;
+      lockValue = lockResult.lockValue;
+    } else {
+      return res.status(400).json({ message: 'Invalid category' });
+    }
+
+    // 3. Create Reservation
+    step = 'Step3-CreateReservation';
+    const reservationNumber = `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const reservation = new (require('../../models/Reservation'))({
+      reservationNumber,
+      customerId: customer._id,
+      checkInDate,
+      checkOutDate,
+      numberOfGuests,
+      specialRequests,
+      status: 'PENDING',
+      paymentStatus: 'PENDING',
+      totalPrice: amount || 0
+    });
+
+    if (category === 'ROOM') {
+      reservation.roomTypeId = roomTypeId;
+      reservation.roomId = assignedRoom._id;
+    } else if (category === 'HALL') {
+      reservation.hallTypeId = hallTypeId;
+      reservation.hallId = assignedHall._id;
+    }
+    
+    await reservation.save();
+
+    // 4. Create Payment Intent
+    step = 'Step4-CreatePayment';
+    const payment = new Payment({
+      reservation: reservation._id,
+      amount: amount || 0,
+      currency: 'ETB',
+      paymentMethod: 'CHAPA',
+      status: 'PENDING',
+      customerEmail: email,
+      customerPhone: phone,
+      customerName: fullName,
+      paymentDescription: 'Hotel Booking Payment'
+    });
+    payment.chapaReference = payment._id.toString();
+    await payment.save();
+
+    // 5. Initialize Chapa payment
+    step = 'Step5-ChapaInit';
+    const chapaAmount = amount || 1;
+    const chapaResponse = await chapa.initialize({
+      amount: chapaAmount,
+      currency: 'ETB',
+      email,
+      first_name: customer.firstName,
+      last_name: customer.lastName,
+      phone_number: phone,
+      tx_ref: payment._id.toString(),
+      callback_url: `${process.env.SERVER_URL || 'http://localhost:8000'}/api/payments/chapa/webhook`,
+      return_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/booking/success?tx_ref=${payment._id.toString()}`,
+      customization: { title: 'Hotel Booking', description: 'Booking Payment' }
+    });
+
+    if (chapaResponse.status === 'success') {
+      payment.chapaCheckoutUrl = chapaResponse.data?.checkout_url;
+      await payment.save();
+      return res.status(201).json({ reservation, checkout_url: payment.chapaCheckoutUrl });
+    } else {
+      throw new Error(chapaResponse.message || 'Chapa initialization failed');
+    }
+  } catch (error) {
+    if (lockKey && lockValue) {
+      await require('../../utils/lockingService').releaseLock(lockKey, lockValue).catch(() => {});
+    }
+    console.error(`Public reservation error at ${step}:`, error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ message: `Failed at ${step}: ${error.message}` });
+  }
+};
+
+module.exports = exports;

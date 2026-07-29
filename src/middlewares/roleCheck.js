@@ -1,4 +1,5 @@
 const { ROLE_HIERARCHY } = require('../config/constants');
+const { requirePermission } = require('./permissionCheck');
 
 const roleCheck = (...allowedRoles) => {
   return (req, res, next) => {
@@ -35,4 +36,4 @@ const hierarchyCheck = (minRole) => {
   };
 };
 
-module.exports = { roleCheck, hierarchyCheck };
+module.exports = { roleCheck, hierarchyCheck, requirePermission };

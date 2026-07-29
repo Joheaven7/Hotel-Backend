@@ -3,8 +3,8 @@ const router = express.Router();
 const HallType = require('../../models/HallType');
 const Hall = require('../../models/Hall');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 
 // ── PUBLIC ───────────────────────────────────────────────────────────────────
 router.get('/public', async (req, res) => {
@@ -20,7 +20,7 @@ router.get('/public', async (req, res) => {
 
 router.use(authMiddleware);
 
-router.get('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.STAFF), async (req, res) => {
+router.get('/', requirePermission(PERMISSIONS.HALLS.VIEW), async (req, res) => {
     try {
         const types = await HallType.find({ isDeleted: false }).sort({ basePricePerHour: 1 });
         const withCounts = await Promise.all(
@@ -35,7 +35,7 @@ router.get('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.S
     }
 });
 
-router.get('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async (req, res) => {
+router.get('/:id', requirePermission(PERMISSIONS.HALLS.VIEW), async (req, res) => {
     try {
         const type = await HallType.findOne({ _id: req.params.id, isDeleted: false });
         if (!type) return res.status(404).json({ message: 'Hall type not found' });
@@ -47,7 +47,7 @@ router.get('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), asy
     }
 });
 
-router.post('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async (req, res) => {
+router.post('/', requirePermission(PERMISSIONS.HALLS.CREATE), async (req, res) => {
     try {
         const { name, description, basePricePerHour, maxOccupancy, amenities, images, isPublished } = req.body;
         if (!name?.trim() || !basePricePerHour || !maxOccupancy) {
@@ -76,7 +76,7 @@ router.post('/', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async
     }
 });
 
-router.put('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), async (req, res) => {
+router.put('/:id', requirePermission(PERMISSIONS.HALLS.EDIT), async (req, res) => {
     try {
         const { name, description, basePricePerHour, maxOccupancy, amenities, images, isPublished } = req.body;
         const update = {};
@@ -118,7 +118,7 @@ router.put('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), asy
     }
 });
 
-router.delete('/:id', roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN), async (req, res) => {
+router.delete('/:id', requirePermission(PERMISSIONS.HALLS.DELETE), async (req, res) => {
     try {
         const hallCount = await Hall.countDocuments({ hallTypeId: req.params.id, isDeleted: false });
         if (hallCount > 0) {

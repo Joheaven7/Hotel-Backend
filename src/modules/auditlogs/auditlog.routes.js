@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const AuditLog = require('../../models/AuditLog');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 
-// All audit log routes — SUPER_ADMIN only
+// All audit log routes
 router.use(authMiddleware);
-router.use(roleCheck(ROLES.SUPER_ADMIN));
+router.use(requirePermission(PERMISSIONS.SYSTEM.AUDIT_LOGS));
 
 router.get('/', async (req, res) => {
   try {
@@ -62,4 +62,4 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;

@@ -1,64 +1,71 @@
 const express = require('express');
 const userController = require('./user.controller');
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 const { validateUserCreation, handleValidationErrors } = require('../../utils/validators');
 const { auditLogger } = require('../../middlewares/auditLogger');
 
 const router = express.Router();
 router.use(authMiddleware);
 
-// Create user — SUPER_ADMIN, ADMIN, MANAGER (HR can also create STAFF)
+// Create user
 router.post(
   '/',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR),
+  requirePermission(PERMISSIONS.USERS.CREATE),
   validateUserCreation,
   handleValidationErrors,
   auditLogger('USER_CREATE'),
   userController.createUser
 );
 
-// Get all users — SUPER_ADMIN, ADMIN, MANAGER, HR, ACCOUNTANT
+// Get all users
 router.get(
   '/',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.USERS.VIEW),
   userController.getAllUsers
 );
 
-// Get single user
+// Get single user (any authenticated user; controller enforces ownership/hierarchy)
 router.get('/:userId', userController.getUserById);
 
-// Update user — managers can update staff below them
+// Update user (self-update allowed for all; controller enforces hierarchy for editing others)
 router.patch(
   '/:userId',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.ACCOUNTANT, ROLES.STAFF, ROLES.CUSTOMER),
   auditLogger('USER_UPDATE'),
   userController.updateUser
 );
 
-// Delete (soft) — SUPER_ADMIN, ADMIN, MANAGER
+// Delete (soft)
 router.delete(
   '/:userId',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+  requirePermission(PERMISSIONS.USERS.DELETE),
   auditLogger('USER_DELETE'),
   userController.deleteUser
 );
 
-// Restore — SUPER_ADMIN, ADMIN only
+// Restore
 router.post(
   '/:userId/restore',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN),
+  requirePermission(PERMISSIONS.SYSTEM.RESTORE_DATA),
   auditLogger('USER_RESTORE'),
   userController.restoreUser
 );
 
-// Assign role — SUPER_ADMIN only
+// Assign role
 router.post(
   '/:userId/assign-role',
-  roleCheck(ROLES.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.USERS.ASSIGN_ROLES),
   auditLogger('ROLE_CHANGE'),
   userController.assignRole
 );
 
-module.exports = router;
+// Update user permissions
+router.put(
+  '/:userId/permissions',
+  requirePermission(PERMISSIONS.USERS.MANAGE_PERMISSIONS),
+  auditLogger('PERMISSION_CHANGE'),
+  userController.updateUserPermissions
+);
+
+module.exports = router;

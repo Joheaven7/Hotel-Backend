@@ -8,12 +8,33 @@ const complaintSchema = new mongoose.Schema(
   {
     ticketNumber: { type: String, unique: true },
 
-    // Who submitted
+    // Who submitted (optional for unauthenticated QR Token guests)
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref:  'User',
-      required: true,
+      default: null,
     },
+
+    // Guest details when submitted via QR Menu
+    guestInfo: {
+      guestName: { type: String, default: '' },
+      guestEmail: { type: String, default: '' },
+      guestPhone: { type: String, default: '' },
+    },
+
+    // Attached room, QR token, reservation & food order
+    roomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref:  'Room',
+      default: null,
+    },
+    qrToken: { type: String, default: null },
+    foodOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref:  'FoodOrder',
+      default: null,
+    },
+    attachments: [{ type: String }],
 
     // Attached reservation (optional but useful)
     reservationId: {

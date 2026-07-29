@@ -1,101 +1,101 @@
 const express = require('express');
 const payrollController = require('./payroll.controller');
 const authMiddleware    = require('../../middlewares/auth');
-const { roleCheck }     = require('../../middlewares/roleCheck');
-const { ROLES }         = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS }   = require('../../config/constants');
 const { auditLogger }   = require('../../middlewares/auditLogger');
 
 const router = express.Router();
 router.use(authMiddleware);
 
-// ── Create monthly payroll draft — HR, ADMIN, SUPER_ADMIN ──────────────────────
+// ── Create monthly payroll draft ────────────────────────────────────────────────
 router.post(
   '/monthly/create',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR),
+  requirePermission(PERMISSIONS.PAYROLL.CREATE),
   auditLogger('PAYROLL_CREATE'),
   payrollController.createMonthlyPayroll
 );
 
-// ── HR: submit draft for manager approval ─────────────────────────────────────
+// ── Submit draft for manager approval ───────────────────────────────────────────
 router.post(
   '/:payrollId/submit',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR),
+  requirePermission(PERMISSIONS.PAYROLL.CREATE),
   auditLogger('PAYROLL_CREATE'),
   payrollController.submitPayrollForApproval
 );
 
-// ── Manager: approve payroll ──────────────────────────────────────────────────
+// ── Approve payroll ─────────────────────────────────────────────────────────────
 router.post(
   '/:payrollId/approve',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+  requirePermission(PERMISSIONS.PAYROLL.APPROVE),
   auditLogger('PAYROLL_PAID'),
   payrollController.approvePayroll
 );
 
-// ── Manager: reject payroll ───────────────────────────────────────────────────
+// ── Reject payroll ──────────────────────────────────────────────────────────────
 router.post(
   '/:payrollId/reject',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+  requirePermission(PERMISSIONS.PAYROLL.APPROVE),
   payrollController.rejectPayroll
 );
 
-// ── Batch mark paid ───────────────────────────────────────────────────────────
+// ── Batch mark paid ─────────────────────────────────────────────────────────────
 router.post(
   '/batch/mark-paid',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYMENTS.APPROVE),
   auditLogger('PAYROLL_PAID'),
   payrollController.markBatchPayrollAsPaid
 );
 
-// ── Worker directory ───────────────────────────────────────────────────────────
+// ── Worker directory ────────────────────────────────────────────────────────────
 router.get(
   '/workers',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYROLL.VIEW),
   payrollController.getPayrollWorkers
 );
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// ── Stats ───────────────────────────────────────────────────────────────────────
 router.get(
   '/stats/report',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYROLL.VIEW),
   payrollController.getPayrollStats
 );
 
-// ── Get by month ──────────────────────────────────────────────────────────────
+// ── Get by month ────────────────────────────────────────────────────────────────
 router.get(
   '/month/:month',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYROLL.VIEW),
   payrollController.getPayrollByMonth
 );
 
-// ── Get single ────────────────────────────────────────────────────────────────
+// ── Get single ──────────────────────────────────────────────────────────────────
 router.get(
   '/:payrollId',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYROLL.VIEW),
   payrollController.getPayrollById
 );
 
-// ── Accountant: mark as paid (APPROVED only — enforced in controller) ─────────
+// ── Mark as paid (APPROVED only — enforced in controller) ───────────────────────
 router.post(
   '/:payrollId/mark-paid',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ACCOUNTANT),
+  requirePermission(PERMISSIONS.PAYMENTS.APPROVE),
   auditLogger('PAYROLL_PAID'),
   payrollController.markPayrollAsPaid
 );
 
-// ── Update bonus/deductions — HR, ADMIN (only on DRAFT or REJECTED) ───────────
+// ── Update bonus/deductions (only on DRAFT or REJECTED) ─────────────────────────
 router.put(
   '/:payrollId',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR),
+  requirePermission(PERMISSIONS.PAYROLL.EDIT),
   auditLogger('PAYROLL_CREATE'),
   payrollController.updatePayroll
 );
 
-// ── Delete — ADMIN / MANAGER ─────────────────────────────────────────────────
+// ── Delete ───────────────────────────────────────────────────────────────────────
 router.delete(
   '/:payrollId',
-  roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+  requirePermission(PERMISSIONS.PAYROLL.DELETE),
   payrollController.deletePayroll
 );
 
-module.exports = router;
+module.exports = router;

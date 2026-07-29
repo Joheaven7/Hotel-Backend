@@ -121,7 +121,10 @@ exports.verifyChapaPayment = async (req, res) => {
     if (verificationResponse.status === 'success') {
       const paymentStatus = verificationResponse.data.status;
 
-      const payment = await Payment.findOne({ chapaReference: txRef });
+      let payment = await Payment.findOne({ chapaReference: txRef });
+      if (!payment && /^[0-9a-fA-F]{24}$/.test(txRef)) {
+        payment = await Payment.findById(txRef);
+      }
       if (payment) {
         if (paymentStatus === 'success') {
           payment.status = PAYMENT_STATUS.PAID;

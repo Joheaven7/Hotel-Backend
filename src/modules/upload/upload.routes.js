@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../../middlewares/auth');
-const { roleCheck } = require('../../middlewares/roleCheck');
-const { ROLES } = require('../../config/constants');
+const { requirePermission } = require('../../middlewares/permissionCheck');
+const { PERMISSIONS } = require('../../config/constants');
 const {
     uploadRoomTypeImages,
     uploadHallTypeImages,
@@ -20,7 +20,7 @@ const User = require('../../models/User');
 router.post(
     '/room-type/:id/images',
     authMiddleware,
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+    requirePermission(PERMISSIONS.ROOMS.EDIT),
     handleUpload(uploadRoomTypeImages),
     async (req, res) => {
         try {
@@ -60,7 +60,7 @@ router.post(
 router.delete(
     '/room-type/:id/images',
     authMiddleware,
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+    requirePermission(PERMISSIONS.ROOMS.EDIT),
     async (req, res) => {
         try {
             const { imageUrl } = req.body;
@@ -91,7 +91,7 @@ router.delete(
 router.post(
     '/hall-type/:id/images',
     authMiddleware,
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+    requirePermission(PERMISSIONS.HALLS.EDIT),
     handleUpload(uploadHallTypeImages),
     async (req, res) => {
         try {
@@ -129,7 +129,7 @@ router.post(
 router.delete(
     '/hall-type/:id/images',
     authMiddleware,
-    roleCheck(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+    requirePermission(PERMISSIONS.HALLS.EDIT),
     async (req, res) => {
         try {
             const { imageUrl } = req.body;

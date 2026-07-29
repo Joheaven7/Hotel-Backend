@@ -36,6 +36,7 @@ const findAndLockRoom = async ({ roomTypeId, checkIn, checkOut, numberOfGuests }
     const conflictingRoomIds = (await Reservation.find({
         roomId: { $in: candidates.map(r => r._id) },
         status: { $in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+        deleted: { $ne: true },
         checkInDate: { $lt: checkOut },
         checkOutDate: { $gt: checkIn },
     }).distinct('roomId')).map(id => id.toString());
@@ -134,6 +135,7 @@ const findAndLockHall = async ({ hallTypeId, checkIn, checkOut, numberOfGuests }
     const conflictingHallIds = (await Reservation.find({
         hallId: { $in: candidates.map(h => h._id) },
         status: { $in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+        deleted: { $ne: true },
         checkInDate: { $lt: checkOut },
         checkOutDate: { $gt: checkIn },
     }).distinct('hallId')).map(id => id.toString());

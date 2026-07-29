@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     firstName: { type: String, trim: true },
     lastName: { type: String, trim: true },
     name: { type: String, trim: true },
+    username: { type: String, trim: true, unique: true, sparse: true },
 
     email: {
       type: String,
@@ -30,8 +31,12 @@ const userSchema = new mongoose.Schema(
     // ── Role & Access ─────────────────────────────────────────────────────────
     role: {
       type: String,
-      enum: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR', 'ACCOUNTANT', 'STAFF', 'CUSTOMER'],
       default: 'CUSTOMER',
+    },
+
+    permissions: {
+      type: [String],
+      default: [],
     },
 
     // ── Structured ID (auto-generated) ────────────────────────────────────────
