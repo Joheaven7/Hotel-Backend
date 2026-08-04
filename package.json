@@ -21,7 +21,7 @@
     "bull": "^4.16.5",
     "bullmq": "^6.0.6",
     "chapa": "^1.0.4",
-    "cloudinary": "^2.10.0",
+    "cloudinary": "^1.41.3",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
