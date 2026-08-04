@@ -216,25 +216,19 @@ exports.validateRoom = async (req, res) => {
     const { roomToken } = req.params;
     if (!roomToken) return res.status(400).json({ message: 'Room token is required' });
 
-    let room = await Room.findOne({
-      $or: [{ qrToken: roomToken }, { roomNumber: roomToken }],
+    // SECURITY: Only accept existing rooms with valid QR tokens
+    // Do NOT auto-create rooms for arbitrary tokens
+    const room = await Room.findOne({
+      qrToken: roomToken,
       isDeleted: { $ne: true },
+      enableRoomService: true,
     }).populate('roomTypeId', 'name');
 
     if (!room) {
-      // Auto-create room if it does not exist yet so demo access (101, 102, 103 etc.) always works
-      try {
-        room = new Room({
-          roomNumber: String(roomToken).trim(),
-          qrToken: String(roomToken).trim(),
-          enableRoomService: true,
-          status: 'AVAILABLE',
-          type: 'STANDARD',
-        });
-        await room.save();
-      } catch (err) {
-        room = await Room.findOne({ isDeleted: { $ne: true } });
-      }
+      // Return error instead of auto-creating
+      return res.status(403).json({
+        message: 'Invalid QR code. Room not found or room service is disabled.'
+      });
     }
 
     if (room && !room.enableRoomService) {
@@ -273,23 +267,26 @@ exports.validateRoom = async (req, res) => {
 };
 
 exports.createOrder = async (req, res) => {
+  console.log('>>> CREATE ORDER CALLED with roomToken:', req.body?.roomToken);
   try {
     const { roomToken, items, specialInstructions, customerName, customerPhone } = req.body;
-    
-    let room = await Room.findOne({
+
+    // SECURITY: Verify room exists - do NOT auto-create
+    // Only allow orders for existing, valid rooms
+    console.log('[SECURITY] Checking room for token:', roomToken);
+    const room = await Room.findOne({
       $or: [{ qrToken: roomToken }, { roomNumber: roomToken }],
       isDeleted: { $ne: true },
+      enableRoomService: true,
     });
 
+    console.log('[SECURITY] Room lookup result:', room ? `Found room ${room.roomNumber}` : 'Room NOT found');
+
     if (!room) {
-      room = new Room({
-        roomNumber: String(roomToken).trim(),
-        qrToken: String(roomToken).trim(),
-        enableRoomService: true,
-        status: 'AVAILABLE',
-        type: 'STANDARD',
+      console.log('[SECURITY] BLOCKING order for non-existent room:', roomToken);
+      return res.status(403).json({
+        message: 'Invalid room token. Room not found or room service is disabled.'
       });
-      await room.save();
     }
 
     const reservation = await Reservation.findOne({
