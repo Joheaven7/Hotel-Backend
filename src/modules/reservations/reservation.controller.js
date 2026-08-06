@@ -960,6 +960,13 @@ exports.createPublicReservation = async (req, res) => {
     // 5. Initialize Chapa payment
     step = 'Step5-ChapaInit';
     const chapaAmount = amount || 1;
+    const serverUrl = (process.env.SERVER_URL && !process.env.SERVER_URL.includes('localhost'))
+      ? process.env.SERVER_URL.replace(/\/+$/, '')
+      : 'https://hotel-backend-lnqn.onrender.com';
+    const clientUrl = (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost'))
+      ? process.env.CLIENT_URL.replace(/\/+$/, '')
+      : 'https://hotel-pms-client.vercel.app';
+
     const chapaResponse = await chapa.initialize({
       amount: chapaAmount,
       currency: 'ETB',
@@ -968,8 +975,8 @@ exports.createPublicReservation = async (req, res) => {
       last_name: customer.lastName,
       phone_number: phone,
       tx_ref: payment._id.toString(),
-      callback_url: `${process.env.SERVER_URL || 'https://hotel-backend-lnqn.onrender.com'}/api/payments/chapa/webhook`,
-      return_url: `${process.env.CLIENT_URL || 'https://hotel-pms-client.vercel.app'}/booking/success?tx_ref=${payment._id.toString()}`,
+      callback_url: `${serverUrl}/api/payments/chapa/webhook`,
+      return_url: `${clientUrl}/booking/success?tx_ref=${payment._id.toString()}`,
       customization: { title: 'Hotel Booking', description: 'Booking Payment' }
     });
 

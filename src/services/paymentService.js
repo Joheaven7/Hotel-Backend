@@ -34,6 +34,13 @@ const createPaymentIntent = async ({ reservationId, amount, customerEmail, custo
   });
 
   const txRef = paymentIntent._id.toString();
+  const serverUrl = (process.env.SERVER_URL && !process.env.SERVER_URL.includes('localhost'))
+    ? process.env.SERVER_URL.replace(/\/+$/, '')
+    : 'https://hotel-backend-lnqn.onrender.com';
+  const clientUrl = (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost'))
+    ? process.env.CLIENT_URL.replace(/\/+$/, '')
+    : 'https://hotel-pms-client.vercel.app';
+
   const chapaResponse = await chapa.initialize({
     amount,
     currency: 'ETB',
@@ -42,8 +49,8 @@ const createPaymentIntent = async ({ reservationId, amount, customerEmail, custo
     last_name: paymentIntent.customerName.split(' ').slice(1).join(' ') || '',
     phone_number: paymentIntent.customerPhone,
     tx_ref: txRef,
-    callback_url: `${process.env.SERVER_URL || 'https://hotel-backend-lnqn.onrender.com'}/api/payments/chapa/webhook`,
-    return_url: `${process.env.CLIENT_URL || 'https://hotel-pms-client.vercel.app'}/payment-callback?tx_ref=${txRef}`,
+    callback_url: `${serverUrl}/api/payments/chapa/webhook`,
+    return_url: `${clientUrl}/payment-callback?tx_ref=${txRef}`,
     customization: {
       title: 'Hotel Booking Payment',
       description: `Payment for reservation ${reservation.reservationNumber}`,

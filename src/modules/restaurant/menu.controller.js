@@ -350,8 +350,13 @@ exports.initiateChapaPayment = async (req, res) => {
     order.paymentReference = txRef;
     await order.save();
 
-    const menuFrontendUrl = process.env.MENU_FRONTEND_URL || process.env.CLIENT_URL || 'https://hotel-menu-system.vercel.app';
-    const serverUrl = process.env.SERVER_URL || 'https://hotel-backend-lnqn.onrender.com';
+    const rawMenuUrl = process.env.MENU_FRONTEND_URL || process.env.MENU_URL || process.env.VITE_MENU_URL || process.env.CLIENT_URL;
+    const menuFrontendUrl = (rawMenuUrl && !rawMenuUrl.includes('localhost') && !rawMenuUrl.includes('127.0.0.1'))
+      ? rawMenuUrl.replace(/\/+$/, '')
+      : 'https://hotel-menu-silk.vercel.app';
+    const serverUrl = (process.env.SERVER_URL && !process.env.SERVER_URL.includes('localhost'))
+      ? process.env.SERVER_URL.replace(/\/+$/, '')
+      : 'https://hotel-backend-lnqn.onrender.com';
     const returnUrl = `${menuFrontendUrl}/order/${order.orderNumber}?tx_ref=${txRef}`;
     const callbackUrl = `${serverUrl}/api/menu/payment/verify`;
 
