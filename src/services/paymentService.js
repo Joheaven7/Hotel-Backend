@@ -42,8 +42,8 @@ const createPaymentIntent = async ({ reservationId, amount, customerEmail, custo
     last_name: paymentIntent.customerName.split(' ').slice(1).join(' ') || '',
     phone_number: paymentIntent.customerPhone,
     tx_ref: txRef,
-    callback_url: `${process.env.SERVER_URL || 'http://localhost:8000'}/api/payments/chapa/webhook`,
-    return_url: `${process.env.CLIENT_URL}/payment-callback?tx_ref=${txRef}`,
+    callback_url: `${process.env.SERVER_URL || 'https://hotel-backend-lnqn.onrender.com'}/api/payments/chapa/webhook`,
+    return_url: `${process.env.CLIENT_URL || 'https://hotel-pms-client.vercel.app'}/payment-callback?tx_ref=${txRef}`,
     customization: {
       title: 'Hotel Booking Payment',
       description: `Payment for reservation ${reservation.reservationNumber}`,

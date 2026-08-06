@@ -345,7 +345,15 @@ exports.initiateChapaPayment = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     const txRef = `FOOD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    const returnUrl = `${process.env.MENU_FRONTEND_URL || 'http://localhost:3003'}/order/${order.orderNumber}`;
+    
+    // Save payment reference on order upfront
+    order.paymentReference = txRef;
+    await order.save();
+
+    const menuFrontendUrl = process.env.MENU_FRONTEND_URL || process.env.CLIENT_URL || 'https://hotel-menu-system.vercel.app';
+    const serverUrl = process.env.SERVER_URL || 'https://hotel-backend-lnqn.onrender.com';
+    const returnUrl = `${menuFrontendUrl}/order/${order.orderNumber}?tx_ref=${txRef}`;
+    const callbackUrl = `${serverUrl}/api/menu/payment/verify`;
 
     const chapaPayload = {
       amount: order.totalAmount,
@@ -355,7 +363,7 @@ exports.initiateChapaPayment = async (req, res) => {
       last_name: order.customerName ? (order.customerName.split(' ')[1] || '') : '',
       phone_number: order.customerPhone || '0900000000',
       tx_ref: txRef,
-      callback_url: `${process.env.SERVER_URL || 'http://localhost:8000'}/api/menu/payment/verify`,
+      callback_url: callbackUrl,
       return_url: returnUrl,
       customization: {
         title: 'Room Service Order',
@@ -370,8 +378,6 @@ exports.initiateChapaPayment = async (req, res) => {
         const chapaResponse = await chapa.initialize(chapaPayload);
         if (chapaResponse && chapaResponse.status === 'success' && chapaResponse.data?.checkout_url) {
           checkoutUrl = chapaResponse.data.checkout_url;
-          order.paymentReference = txRef;
-          await order.save();
         }
       }
     } catch (chapaErr) {

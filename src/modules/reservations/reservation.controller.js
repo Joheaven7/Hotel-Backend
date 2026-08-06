@@ -968,8 +968,8 @@ exports.createPublicReservation = async (req, res) => {
       last_name: customer.lastName,
       phone_number: phone,
       tx_ref: payment._id.toString(),
-      callback_url: `${process.env.SERVER_URL || 'http://localhost:8000'}/api/payments/chapa/webhook`,
-      return_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/booking/success?tx_ref=${payment._id.toString()}`,
+      callback_url: `${process.env.SERVER_URL || 'https://hotel-backend-lnqn.onrender.com'}/api/payments/chapa/webhook`,
+      return_url: `${process.env.CLIENT_URL || 'https://hotel-pms-client.vercel.app'}/booking/success?tx_ref=${payment._id.toString()}`,
       customization: { title: 'Hotel Booking', description: 'Booking Payment' }
     });
 
