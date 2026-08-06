@@ -965,7 +965,9 @@ exports.createPublicReservation = async (req, res) => {
       : 'https://hotel-backend-lnqn.onrender.com';
     const clientUrl = (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost'))
       ? process.env.CLIENT_URL.replace(/\/+$/, '')
-      : 'https://hotel-pms-client.vercel.app';
+      : (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('localhost'))
+        ? process.env.FRONTEND_URL.replace(/\/+$/, '')
+        : 'https://hotel-frontend-joheaven7s-projects.vercel.app';
 
     const chapaResponse = await chapa.initialize({
       amount: chapaAmount,

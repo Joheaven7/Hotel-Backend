@@ -287,7 +287,11 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    const resetUrl = `${process.env.CLIENT_URL || 'https://hotel-pms-client.vercel.app'}/reset-password?token=${resetToken}`;
+    const rawClientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL;
+    const clientUrl = (rawClientUrl && !rawClientUrl.includes('localhost'))
+      ? rawClientUrl.replace(/\/+$/, '')
+      : 'https://hotel-frontend-joheaven7s-projects.vercel.app';
+    const resetUrl = `${clientUrl}/reset-password?token=${resetToken}`;
 
     const mailSent = await sendEmail(user.email, 'passwordReset', {
       name: user.name || 'User',
